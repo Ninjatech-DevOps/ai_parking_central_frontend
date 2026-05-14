@@ -142,6 +142,7 @@ export const devicesApi = {
   create: (d: Record<string, unknown>) => api.post<Device>("/devices", d),
   update: (id: string, d: Record<string, unknown>) => api.patch<Device>(`/devices/${id}`, d),
   delete: (id: string) => api.delete(`/devices/${id}`),
+  getSnapshot: (id: string) => api.get(`/devices/${id}/snapshot`, { responseType: "arraybuffer" }),
 };
 
 export const rolesApi = {

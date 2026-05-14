@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, type FormEvent } from "react";
 import { showSuccess, showError } from "@/lib/toast";
-import { devicesApi, commandsApi, locationsApi } from "@/services/api";
+import { devicesApi, commandsApi, locationsApi, floorsApi, zonesApi } from "@/services/api";
 import { useFilter } from "@/contexts/FilterContext";
 import SearchSelect from "@/components/SearchSelect";
 import { usePolling } from "@/hooks/usePolling";
@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { RotateCw, Camera, Plus, Pencil, Trash2, History, Search, Monitor } from "lucide-react";
-import type { Device, Location, DeviceCommand, PaginatedResponse } from "@/types/api";
+import { RotateCw, Camera, Eye, Plus, Pencil, Trash2, History, Search, Monitor } from "lucide-react";
+import type { Device, Location, DeviceCommand, Floor, Zone } from "@/types/api";
 
 export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -31,9 +31,27 @@ export default function Devices() {
   const [formLocationId, setFormLocationId] = useState("");
   const [formIp, setFormIp] = useState("");
   const [formDockerVersion, setFormDockerVersion] = useState("");
+  const [formZoneId, setFormZoneId] = useState("");
+  const [formFloorId, setFormFloorId] = useState("");
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [formSaving, setFormSaving] = useState(false);
 
   useEffect(() => { locationsApi.list("page_size=100").then(({ data }) => setLocations(data.items)); }, []);
+
+  useEffect(() => {
+    if (formLocationId) {
+      floorsApi.byLocation(formLocationId).then(({ data }) => setFloors(data.items)).catch(() => setFloors([]));
+    } else { setFloors([]); }
+    setFormFloorId(""); setFormZoneId(""); setZones([]);
+  }, [formLocationId]);
+
+  useEffect(() => {
+    if (formFloorId) {
+      zonesApi.byFloor(formFloorId).then(({ data }) => setZones(data.items)).catch(() => setZones([]));
+    } else { setZones([]); }
+    setFormZoneId("");
+  }, [formFloorId]);
 
   const { deviceQueryParams } = useFilter();
 
@@ -46,19 +64,50 @@ export default function Devices() {
   }, [statusFilter, deviceQueryParams]);
   usePolling(fetchDevices, 10000);
 
-  function openCreate() { setEditing(null); setFormDeviceId(""); setFormLocationId(""); setFormIp(""); setFormDockerVersion(""); setShowForm(true); }
-  function openEdit(d: Device) { setEditing(d); setFormDeviceId(d.device_id); setFormLocationId(d.location_id); setFormIp(d.ip_address || ""); setFormDockerVersion(d.docker_image_version || ""); setShowForm(true); }
+  function openCreate() { setEditing(null); setFormDeviceId(""); setFormLocationId(""); setFormFloorId(""); setFormZoneId(""); setFormIp(""); setFormDockerVersion(""); setShowForm(true); }
+  function openEdit(d: Device) { setEditing(d); setFormDeviceId(d.device_id); setFormLocationId(d.location_id); setFormFloorId(""); setFormZoneId(d.zone_id || ""); setFormIp(d.ip_address || ""); setFormDockerVersion(d.docker_image_version || ""); setShowForm(true); }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault(); setFormSaving(true);
     try {
-      const p = { device_id: formDeviceId, location_id: formLocationId, ip_address: formIp || null, docker_image_version: formDockerVersion || null };
+      const p = { device_id: formDeviceId, location_id: formLocationId, zone_id: formZoneId || null, ip_address: formIp || null, docker_image_version: formDockerVersion || null };
       editing ? await devicesApi.update(editing.id, p) : await devicesApi.create(p);
       setShowForm(false); showSuccess(editing ? "Updated" : "Created"); fetchDevices();
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
   }
   async function handleDelete() { if (!deleting) return; setDeleteLoading(true); try { await devicesApi.delete(deleting.id); setDeleting(null); showSuccess("Deleted"); fetchDevices(); } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setDeleteLoading(false); } }
-  async function sendCmd(id: string, type: "restart" | "snapshot") { setCommandLoading(`${id}-${type}`); try { type === "restart" ? await commandsApi.restart(id) : await commandsApi.snapshot(id); } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setCommandLoading(null); } }
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [showSnapshot, setShowSnapshot] = useState(false);
+
+  async function sendCmd(id: string, type: "restart" | "snapshot") {
+    setCommandLoading(`${id}-${type}`);
+    try {
+      if (type === "restart") {
+        await commandsApi.restart(id);
+        showSuccess("Restart command sent");
+      } else {
+        setSnapshotLoading(true);
+        setShowSnapshot(true);
+        setSnapshotUrl(null);
+        await commandsApi.snapshot(id);
+        await new Promise((r) => setTimeout(r, 4000));
+        await fetchSnapshot(id);
+      }
+    } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); setSnapshotLoading(false); }
+    finally { setCommandLoading(null); }
+  }
+
+  async function fetchSnapshot(id: string) {
+    try {
+      setSnapshotLoading(true);
+      setShowSnapshot(true);
+      const resp = await devicesApi.getSnapshot(id);
+      const blob = new Blob([resp.data], { type: "image/jpeg" });
+      setSnapshotUrl(URL.createObjectURL(blob));
+    } catch { showError("No snapshot available"); setShowSnapshot(false); }
+    finally { setSnapshotLoading(false); }
+  }
   async function openHistory(id: string) { setShowHistory(id); setCmdHistory((await commandsApi.history(id)).data); }
 
   const filtered = useMemo(() => {
@@ -125,7 +174,8 @@ export default function Devices() {
                 <TableCell className="text-right">
                   <div className="flex gap-0.5 justify-end opacity-60 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="icon" title="Restart" className="h-8 w-8 rounded-lg hover:bg-teal-50 hover:text-teal-600" disabled={commandLoading === `${d.id}-restart`} onClick={() => sendCmd(d.id, "restart")}><RotateCw size={14} /></Button>
-                    <Button variant="ghost" size="icon" title="Snapshot" className="h-8 w-8 rounded-lg hover:bg-violet-50 hover:text-violet-600" disabled={commandLoading === `${d.id}-snapshot`} onClick={() => sendCmd(d.id, "snapshot")}><Camera size={14} /></Button>
+                    <Button variant="ghost" size="icon" title="Capture Snapshot" className="h-8 w-8 rounded-lg hover:bg-violet-50 hover:text-violet-600" disabled={commandLoading === `${d.id}-snapshot`} onClick={() => sendCmd(d.id, "snapshot")}><Camera size={14} /></Button>
+                    <Button variant="ghost" size="icon" title="View Last Snapshot" className="h-8 w-8 rounded-lg hover:bg-sky-50 hover:text-sky-600" onClick={() => fetchSnapshot(d.id)}><Eye size={14} /></Button>
                     <Button variant="ghost" size="icon" title="History" className="h-8 w-8 rounded-lg" onClick={() => openHistory(d.id)}><History size={14} /></Button>
                     <Button variant="ghost" size="icon" title="Edit" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600" onClick={() => openEdit(d)}><Pencil size={14} /></Button>
                     <Button variant="ghost" size="icon" title="Delete" className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600" onClick={() => setDeleting(d)}><Trash2 size={14} /></Button>
@@ -146,6 +196,20 @@ export default function Devices() {
               options={locations.map((l) => ({ value: l.id, label: l.name }))}
               placeholder="Select location" searchPlaceholder="Search location..." className="w-full h-10" /></div>
           </div>
+          {floors.length > 0 && (
+            <div><Label className="text-[13px] font-semibold text-slate-700">Floor</Label>
+              <div className="mt-2"><SearchSelect value={formFloorId} onValueChange={setFormFloorId}
+                options={floors.map((f) => ({ value: f.id, label: f.label }))}
+                placeholder="Select floor" searchPlaceholder="Search floor..." className="w-full h-10" /></div>
+            </div>
+          )}
+          {zones.length > 0 && (
+            <div><Label className="text-[13px] font-semibold text-slate-700">Zone</Label>
+              <div className="mt-2"><SearchSelect value={formZoneId} onValueChange={setFormZoneId}
+                options={zones.map((z) => ({ value: z.id, label: z.name }))}
+                placeholder="Select zone" searchPlaceholder="Search zone..." className="w-full h-10" /></div>
+            </div>
+          )}
           <div><Label className="text-[13px] font-semibold text-slate-700">IP Address</Label><Input value={formIp} onChange={(e) => setFormIp(e.target.value)} className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
           <div><Label className="text-[13px] font-semibold text-slate-700">Docker Version</Label><Input value={formDockerVersion} onChange={(e) => setFormDockerVersion(e.target.value)} className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
@@ -163,6 +227,22 @@ export default function Devices() {
               <span className={`text-[10px] font-bold uppercase tracking-wider rounded-lg px-2 py-1 ${c.status === "COMPLETED" ? "text-emerald-700 bg-emerald-50" : c.status === "FAILED" ? "text-red-700 bg-red-50" : "text-slate-500 bg-slate-100"}`}>{c.status}</span>
             </div>
           ))}
+        </div>
+      </CrudDialog>
+
+      <CrudDialog open={showSnapshot} onClose={() => { setShowSnapshot(false); if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); setSnapshotUrl(null); } }} title="Device Snapshot">
+        <div className="mt-3">
+          {snapshotLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+              <span className="ml-3 text-[13px] text-slate-500">Capturing snapshot...</span>
+            </div>
+          ) : snapshotUrl ? (
+            <div>
+              <img src={snapshotUrl} alt="Device snapshot" className="w-full rounded-xl border border-slate-200" onError={() => { showError("Snapshot not available yet."); setShowSnapshot(false); }} />
+              <p className="text-[11px] text-slate-400 mt-2 text-center">Captured at {new Date().toLocaleString()}</p>
+            </div>
+          ) : null}
         </div>
       </CrudDialog>
     </div>
