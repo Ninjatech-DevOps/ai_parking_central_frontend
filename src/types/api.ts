@@ -150,6 +150,8 @@ export interface CanvasCamera {
   device_id: string;
   position_label: string;
   status: string;
+  frame_width: number | null;
+  frame_height: number | null;
   slots: CanvasSlot[];
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import type { CanvasCamera, CanvasSlot } from "@/types/api";
 
 const COLORS = {
@@ -9,17 +9,47 @@ const COLORS = {
 
 interface Props {
   camera: CanvasCamera;
-  width?: number;
-  height?: number;
 }
 
-export default function CameraCanvas({ camera, width = 480, height = 300 }: Props) {
+export default function CameraCanvas({ camera }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredSlot, setHoveredSlot] = useState<CanvasSlot | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [canvasSize, setCanvasSize] = useState({ width: 480, height: 300 });
 
-  // Find the max coordinates to determine scale
-  const slotsWithPos = camera.slots.filter((s) => s.pos_x1 != null && s.pos_x2 != null);
+  // Auto-size canvas to container width + camera aspect ratio
+  const updateSize = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const containerWidth = container.clientWidth;
+    const frameW = camera.frame_width || 1920;
+    const frameH = camera.frame_height || 1080;
+    const aspect = frameH / frameW;
+    setCanvasSize({ width: containerWidth, height: Math.round(containerWidth * aspect) });
+  }, [camera.frame_width, camera.frame_height]);
+
+  useEffect(() => {
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [updateSize]);
+
+  const { width, height } = canvasSize;
+
+  // Parse polygon coords for each slot
+  const parsedSlots = camera.slots.map((s) => {
+    let points: number[][] = [];
+    if (s.polygon_coords) {
+      try { points = JSON.parse(s.polygon_coords); } catch { /* ignore */ }
+    }
+    // Fallback to bounding box if no polygon
+    if (points.length === 0 && s.pos_x1 != null && s.pos_x2 != null) {
+      points = [[s.pos_x1!, s.pos_y1!], [s.pos_x2!, s.pos_y1!], [s.pos_x2!, s.pos_y2!], [s.pos_x1!, s.pos_y2!]];
+    }
+    return { ...s, points };
+  });
+  const slotsWithPos = parsedSlots.filter((s) => s.points.length >= 3);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -47,50 +77,60 @@ export default function CameraCanvas({ camera, width = 480, height = 300 }: Prop
       return;
     }
 
-    // Calculate uniform scale to fit all slots with margin
-    const minX = Math.min(...slotsWithPos.map((s) => s.pos_x1!));
-    const minY = Math.min(...slotsWithPos.map((s) => s.pos_y1!));
-    const maxX = Math.max(...slotsWithPos.map((s) => s.pos_x2!)) - minX;
-    const maxY = Math.max(...slotsWithPos.map((s) => s.pos_y2!)) - minY;
-    const margin = 30;
-    const scale = Math.min((width - margin * 2) / maxX, (height - margin * 2) / maxY);
-    const scaleX = scale;
-    const scaleY = scale;
-    const offsetX = (width - maxX * scale) / 2 - minX * scale;
-    const offsetY = (height - maxY * scale) / 2 - minY * scale;
+    // Use frame dimensions from camera if available, otherwise compute from slot bounds
+    const hasFrameDims = camera.frame_width && camera.frame_height;
+    const frameW = camera.frame_width || Math.max(...slotsWithPos.flatMap((s) => s.points.map((p) => p[0]))) * 1.05;
+    const frameH = camera.frame_height || Math.max(...slotsWithPos.flatMap((s) => s.points.map((p) => p[1]))) * 1.05;
 
-    // Draw each slot
+    // No margin when we have exact frame dims, small margin for fallback
+    const margin = hasFrameDims ? 0 : 10;
+    const scale = Math.min((width - margin * 2) / frameW, (height - margin * 2) / frameH);
+    const offsetX = (width - frameW * scale) / 2;
+    const offsetY = (height - frameH * scale) / 2;
+
+    // Draw each slot as polygon
     for (const slot of slotsWithPos) {
-      const x = slot.pos_x1! * scaleX + offsetX;
-      const y = slot.pos_y1! * scaleY + offsetY;
-      const w = (slot.pos_x2! - slot.pos_x1!) * scaleX;
-      const h = (slot.pos_y2! - slot.pos_y1!) * scaleY;
-      const color = COLORS[slot.state] || COLORS.EMPTY;
+      const color = COLORS[slot.state as keyof typeof COLORS] || COLORS.EMPTY;
+      const pts = slot.points.map(([px, py]) => [px * scale + offsetX, py * scale + offsetY]);
 
-      // Fill
+      // Draw polygon
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+
       ctx.fillStyle = color.fill;
-      ctx.fillRect(x, y, w, h);
-
-      // Border
+      ctx.fill();
       ctx.strokeStyle = color.stroke;
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(x, y, w, h);
+      ctx.stroke();
 
-      // Label
+      // Centroid for label
+      const cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
+      const cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 11px Inter, system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(slot.label, x + w / 2, y + h / 2 - 6);
+      ctx.fillText(slot.label, cx, cy - 6);
 
-      // State text
       ctx.font = "9px Inter, system-ui, sans-serif";
       ctx.fillStyle = color.text;
-      ctx.fillText(slot.state, x + w / 2, y + h / 2 + 8);
+      ctx.fillText(slot.state, cx, cy + 8);
     }
   }, [camera, width, height, slotsWithPos]);
 
-  // Mouse hover detection
+  // Point-in-polygon test (ray casting)
+  function pointInPolygon(px: number, py: number, pts: number[][]) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas || slotsWithPos.length === 0) return;
@@ -100,21 +140,15 @@ export default function CameraCanvas({ camera, width = 480, height = 300 }: Prop
     const my = e.clientY - rect.top;
     setMousePos({ x: mx, y: my });
 
-    const minX = Math.min(...slotsWithPos.map((s) => s.pos_x1!));
-    const minY = Math.min(...slotsWithPos.map((s) => s.pos_y1!));
-    const maxX = Math.max(...slotsWithPos.map((s) => s.pos_x2!)) - minX;
-    const maxY = Math.max(...slotsWithPos.map((s) => s.pos_y2!)) - minY;
-    const margin = 30;
-    const scale = Math.min((width - margin * 2) / maxX, (height - margin * 2) / maxY);
-    const offsetX = (width - maxX * scale) / 2 - minX * scale;
-    const offsetY = (height - maxY * scale) / 2 - minY * scale;
+    const frameW = camera.frame_width || Math.max(...slotsWithPos.flatMap((s) => s.points.map((p) => p[0])));
+    const frameH = camera.frame_height || Math.max(...slotsWithPos.flatMap((s) => s.points.map((p) => p[1])));
+    const scale = Math.min(width / frameW, height / frameH);
+    const offsetX = (width - frameW * scale) / 2;
+    const offsetY = (height - frameH * scale) / 2;
 
     const found = slotsWithPos.find((s) => {
-      const x = s.pos_x1! * scale + offsetX;
-      const y = s.pos_y1! * scale + offsetY;
-      const w = (s.pos_x2! - s.pos_x1!) * scale;
-      const h = (s.pos_y2! - s.pos_y1!) * scale;
-      return mx >= x && mx <= x + w && my >= y && my <= y + h;
+      const pts = s.points.map(([px, py]) => [px * scale + offsetX, py * scale + offsetY]);
+      return pointInPolygon(mx, my, pts);
     });
     setHoveredSlot(found || null);
   }
@@ -137,7 +171,7 @@ export default function CameraCanvas({ camera, width = 480, height = 300 }: Prop
       </div>
 
       {/* Canvas */}
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <canvas
           ref={canvasRef}
           style={{ width, height, display: "block" }}
