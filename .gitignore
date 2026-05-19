@@ -30,3 +30,6 @@ dist-ssr
 
 # Firebase credentials
 firebase-adminsdk.json
+
+# Generated at build time from env vars — never commit
+public/firebase-messaging-sw.js
