@@ -14,6 +14,39 @@ export interface TokenResponse {
   token_type: string;
 }
 
+// ─── RBAC ───
+export interface RoleInfo {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export interface ScopeInfo {
+  id: string;
+  scope_type: "STATE" | "CITY" | "AREA" | "LOCATION" | "ZONE";
+  scope_id: string;
+  scope_name: string | null;
+}
+
+export interface PermissionItem {
+  id: string;
+  resource: string;
+  action: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system_role: boolean;
+  permissions: PermissionItem[];
+  user_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── User ───
 export interface User {
   id: string;
@@ -22,6 +55,22 @@ export interface User {
   phone: string | null;
   is_active: boolean;
   fcm_tokens: string[];
+  roles: RoleInfo[];
+  scopes: ScopeInfo[];
+  created_at: string;
+  updated_at: string;
+}
+
+// Enriched response from GET /users/me
+export interface UserMe {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  is_active: boolean;
+  roles: RoleInfo[];
+  permissions: string[];
+  scopes: ScopeInfo[];
   created_at: string;
   updated_at: string;
 }
@@ -127,8 +176,14 @@ export interface Camera {
   id: string;
   device_id: string;
   position_label: string;
+  source: string | null;
+  camera_type: string | null;
+  detection_interval: number | null;
   status: "ACTIVE" | "INACTIVE" | "FAILED";
   is_active: boolean;
+  frame_width: number | null;
+  frame_height: number | null;
+  snapshot_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -188,6 +243,24 @@ export interface DeviceCommand {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Parking Sessions ───
+export interface ParkingSession {
+  entry_event_id: string;
+  slot_id: string;
+  slot_label: string;
+  camera_label: string | null;
+  location_name: string | null;
+  location_id: string | null;
+  area_name: string | null;
+  city_name: string | null;
+  camera_id: string | null;
+  event_type: string;
+  entry_time: string;
+  exit_time: string | null;
+  duration_minutes: number | null;
+  is_active: boolean;
 }
 
 // ─── Alerts ───

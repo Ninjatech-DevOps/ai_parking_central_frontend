@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, type FormEvent } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/lib/toast";
 import { locationsApi, citiesApi, talukasApi, villagesApi, areasApi } from "@/services/api";
 import { useNavigate } from "react-router-dom";
@@ -16,8 +17,12 @@ import { Plus, Pencil, Trash2, Search, MapPin, Eye } from "lucide-react";
 import type { Location, City, Taluka, Village, Area, PaginatedResponse } from "@/types/api";
 
 export default function Locations() {
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("locations:create");
+  const canEdit = hasPermission("locations:edit");
+  const canDelete = hasPermission("locations:delete");
   const navigate = useNavigate();
-  const { filterLabel } = useFilter();
+  const { filterLabel, queryParams, cityId, areas: globalAreas } = useFilter();
   const [locations, setLocations] = useState<Location[]>([]); const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false); const [editing, setEditing] = useState<Location | null>(null);
@@ -73,13 +78,14 @@ export default function Locations() {
   });
 
   const fetchLocations = useCallback(async () => {
-    const { data } = await locationsApi.list("page_size=100");
+    const params = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
+    const { data } = await locationsApi.list(params);
     setLocations(data.items); setTotal(data.total);
-  }, []);
+  }, [queryParams]);
   usePolling(fetchLocations, 15000);
 
   function openCreate() {
-    setEditing(null); setFormCityId(""); setFormTalukaId(""); setFormVillageId(""); setFormAreaId("");
+    setEditing(null); setFormCityId(cityId); setFormTalukaId(""); setFormVillageId(""); setFormAreaId("");
     setFormName(""); setFormAddress(""); setFormLat(""); setFormLng(""); setFormType("OPEN"); setFormCapacity("");
     setShowForm(true);
   }
@@ -123,15 +129,37 @@ export default function Locations() {
   const filtered = locations.filter((l) => !search || l.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="max-w-[1360px]">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-bold text-slate-900">Locations</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Manage parking locations · <span className="font-medium text-slate-600">{filterLabel}</span></p>
         </div>
-        <Button onClick={openCreate} className="h-10 rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-[13px] font-semibold gap-2 shadow-md shadow-teal-600/20">
+        {canCreate && <Button onClick={openCreate} className="h-10 rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-[13px] font-semibold gap-2 shadow-md shadow-teal-600/20">
           <Plus size={16} /> New Location
-        </Button>
+        </Button>}
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {(() => {
+          const active = locations.filter((l) => l.is_active).length;
+          const totalCap = locations.reduce((s, l) => s + (l.total_capacity || 0), 0);
+          return [
+            { label: "Total Locations", value: total, color: "text-slate-600", bg: "bg-slate-50" },
+            { label: "Active", value: active, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Inactive", value: total - active, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Total Capacity", value: totalCap, color: "text-teal-600", bg: "bg-teal-50" },
+          ].map(({ label, value, color, bg }) => (
+            <div key={label} className="bg-white rounded-2xl card-shadow p-4 flex items-center gap-4">
+              <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center`}><MapPin size={18} className={color} /></div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                <p className={`text-[22px] font-bold ${color} mt-0.5`}>{value}</p>
+              </div>
+            </div>
+          ));
+        })()}
       </div>
 
       <div className="flex items-center gap-3 mb-5">
@@ -168,7 +196,7 @@ export default function Locations() {
                 <TableCell><span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{l.location_type}</span></TableCell>
                 <TableCell className="text-[13px] text-slate-600 font-semibold">{l.total_capacity}</TableCell>
                 <TableCell><span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${l.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}><span className={`w-1.5 h-1.5 rounded-full ${l.is_active ? "bg-emerald-500" : "bg-red-500"}`} />{l.is_active ? "Active" : "Inactive"}</span></TableCell>
-                <TableCell className="text-right"><div className="flex gap-0.5 justify-end opacity-60 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-teal-50 hover:text-teal-600" onClick={() => navigate(`/parking-lots/${l.id}`)}><Eye size={14} /></Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600" onClick={() => openEdit(l)}><Pencil size={14} /></Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600" onClick={() => setDeleting(l)}><Trash2 size={14} /></Button></div></TableCell>
+                <TableCell className="text-right"><div className="flex gap-0.5 justify-end opacity-60 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-teal-50 hover:text-teal-600" onClick={() => navigate(`/parking-lots/${l.id}`)}><Eye size={14} /></Button>{canEdit && <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600" onClick={() => openEdit(l)}><Pencil size={14} /></Button>}{canDelete && <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600" onClick={() => setDeleting(l)}><Trash2 size={14} /></Button>}</div></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -181,55 +209,15 @@ export default function Locations() {
           {formError && <div className="text-[13px] text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100">{formError}</div>}
           <div><Label className="text-[13px] font-semibold text-slate-700">Location Name</Label><Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Phoenix Mall Parking" className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" required /></div>
 
-          {/* Hierarchy selectors */}
-          {(
-              <div className="bg-slate-50 rounded-xl p-4 space-y-4 border border-slate-100">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location Hierarchy</p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-[12px] text-slate-600">City *</Label>
-                    <div className="mt-1">
-                      <SearchSelect value={formCityId || "_"} onValueChange={(v) => { setFormCityId(v === "_" ? "" : v); setFormTalukaId(""); setFormVillageId(""); setFormAreaId(""); }}
-                        options={[{ value: "_", label: "Select city" }, ...formCities.map((c) => ({ value: c.id, label: c.name }))]}
-                        placeholder="Select city" searchPlaceholder="Search city..." className="w-full" />
-                    </div>
-                  </div>
-                  {formCityId && formTalukas.length > 0 && (
-                    <div>
-                      <Label className="text-[12px] text-slate-600">Taluka <span className="text-slate-400">(optional)</span></Label>
-                      <div className="mt-1">
-                        <SearchSelect value={formTalukaId || "_"} onValueChange={(v) => { setFormTalukaId(v === "_" ? "" : v); setFormVillageId(""); }}
-                          options={[{ value: "_", label: "All talukas" }, ...formTalukas.map((t) => ({ value: t.id, label: t.name }))]}
-                          placeholder="All talukas" searchPlaceholder="Search taluka..." className="w-full" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {formTalukaId && formVillages.length > 0 && (
-                  <div>
-                    <Label className="text-[12px] text-slate-600">Village <span className="text-slate-400">(optional)</span></Label>
-                    <div className="mt-1">
-                      <SearchSelect value={formVillageId || "_"} onValueChange={(v) => setFormVillageId(v === "_" ? "" : v)}
-                        options={[{ value: "_", label: "All villages" }, ...formVillages.map((v2) => ({ value: v2.id, label: v2.name }))]}
-                        placeholder="All villages" searchPlaceholder="Search village..." className="w-full" />
-                    </div>
-                  </div>
-                )}
-
-                {formCityId && (
-                  <div>
-                    <Label className="text-[12px] text-slate-600">Area <span className="text-slate-400">(optional)</span></Label>
-                    <div className="mt-1">
-                      <SearchSelect value={formAreaId || "_"} onValueChange={(v) => setFormAreaId(v === "_" ? "" : v)}
-                        options={[{ value: "_", label: "Select area" }, ...filteredFormAreas.map((a) => ({ value: a.id, label: a.name }))]}
-                        placeholder="Select area" searchPlaceholder="Search area..." className="w-full" />
-                    </div>
-                  </div>
-                )}
-              </div>
-          )}
+          {/* Area selector (city locked to Ahmedabad) */}
+          <div>
+            <Label className="text-[13px] font-semibold text-slate-700">Area *</Label>
+            <div className="mt-2">
+              <SearchSelect value={formAreaId || "_"} onValueChange={(v) => setFormAreaId(v === "_" ? "" : v)}
+                options={[{ value: "_", label: "Select area" }, ...globalAreas.map((a) => ({ value: a.id, label: a.name }))]}
+                placeholder="Select area" searchPlaceholder="Search area..." className="w-full" />
+            </div>
+          </div>
 
           <div><Label className="text-[13px] font-semibold text-slate-700">Address</Label><Input value={formAddress} onChange={(e) => setFormAddress(e.target.value)} className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
 

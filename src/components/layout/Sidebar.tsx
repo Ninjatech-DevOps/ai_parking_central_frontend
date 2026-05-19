@@ -1,46 +1,61 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Monitor, MapPin, Bell, Users, Settings, ParkingSquare,
-  ChevronRight, Building2, Camera, Globe, FileDown,
+  LayoutDashboard, Monitor, Bell, Users, Settings, ParkingSquare,
+  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck,
 } from "lucide-react";
 
-const sections = [
+interface NavItemConfig {
+  to: string;
+  label: string;
+  icon: React.ElementType;
+  /** Permission(s) required — user needs at least one to see this item */
+  permissions?: string[];
+}
+
+interface SectionConfig {
+  label: string;
+  items: NavItemConfig[];
+}
+
+const sections: SectionConfig[] = [
   {
     label: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Location Mgmt",
-    items: [
-      { to: "/location-management", label: "Geography", icon: Globe },
+      { to: "/parking-history", label: "Parking History", icon: History, permissions: ["slots:view"] },
     ],
   },
   {
     label: "Parking Mgmt",
     items: [
-      { to: "/parking-lots", label: "Parking Lots", icon: Building2 },
+      { to: "/parking-lots", label: "Parking Lots", icon: Building2, permissions: ["locations:view"] },
     ],
   },
   {
     label: "Device Mgmt",
     items: [
-      { to: "/devices", label: "Devices", icon: Monitor },
+      { to: "/devices", label: "Devices", icon: Monitor, permissions: ["devices:view"] },
     ],
   },
   {
     label: "Monitoring",
     items: [
-      { to: "/alerts", label: "Alerts", icon: Bell },
-      { to: "/reports", label: "Reports", icon: FileDown },
+      { to: "/alerts", label: "Alerts", icon: Bell, permissions: ["alerts:view"] },
+      { to: "/reports", label: "Reports", icon: FileDown, permissions: ["reports:view"] },
+    ],
+  },
+  {
+    label: "Location Mgmt",
+    items: [
+      { to: "/location-management", label: "Geography", icon: Globe, permissions: ["locations:view"] },
     ],
   },
   {
     label: "Admin",
     items: [
-      { to: "/users", label: "Users", icon: Users },
+      { to: "/users", label: "Users", icon: Users, permissions: ["users:view"] },
+      { to: "/roles", label: "Roles", icon: ShieldCheck, permissions: ["roles:view", "roles:manage"] },
     ],
   },
 ];
@@ -74,10 +89,17 @@ function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: R
 }
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, permissions, hasAnyPermission, roleName } = useAuth();
+
+  // Format role name for display: "SUPER_ADMIN" → "Super Admin"
+  const displayRole = roleName ? roleName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "User";
+
+  // If backend hasn't returned permissions yet (old backend or loading), show all items.
+  // Permission-based hiding only activates once we have actual permissions data.
+  const hasPermsData = permissions.length > 0;
 
   return (
-    <aside className="hidden lg:flex w-[240px] bg-white flex-col min-h-screen border-r border-slate-100">
+    <aside className="hidden lg:flex w-[240px] bg-white flex-col min-h-screen border-r border-slate-100 no-print">
       <div className="px-5 h-14 flex items-center gap-2.5 border-b border-slate-50">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center shadow-md shadow-teal-600/20">
           <ParkingSquare size={16} className="text-white" />
@@ -89,18 +111,26 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 pt-4 overflow-auto">
-        {sections.map((section) => (
-          <div key={section.label} className="mb-4">
-            <p className="px-3 text-[9px] font-bold text-slate-300 uppercase tracking-[0.12em] mb-1.5">
-              {section.label}
-            </p>
-            <div className="space-y-0.5">
-              {section.items.map((item) => (
-                <NavItem key={item.to} {...item} />
-              ))}
+        {sections.map((section) => {
+          // Filter items by permission — show item if no permissions required or user has at least one
+          const visibleItems = section.items.filter(
+            (item) => !item.permissions || !hasPermsData || hasAnyPermission(...item.permissions),
+          );
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={section.label} className="mb-4">
+              <p className="px-3 text-[9px] font-bold text-slate-300 uppercase tracking-[0.12em] mb-1.5">
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => (
+                  <NavItem key={item.to} {...item} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div className="mb-4">
           <NavItem to="/settings" label="Settings" icon={Settings} />
@@ -114,7 +144,7 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-semibold text-slate-800 truncate">{user?.name}</p>
-            <p className="text-[10px] text-slate-400 truncate">Super Admin</p>
+            <p className="text-[10px] text-slate-400 truncate">{displayRole}</p>
           </div>
         </div>
       </div>

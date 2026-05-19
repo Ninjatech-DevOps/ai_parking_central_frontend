@@ -10,10 +10,13 @@ import LocationManagement from "@/pages/LocationManagement";
 import ParkingLots from "@/pages/ParkingLots";
 import ParkingLotDetail from "@/pages/ParkingLotDetail";
 import Devices from "@/pages/Devices";
+import DeviceDetail from "@/pages/DeviceDetail";
 import Alerts from "@/pages/Alerts";
 import Users from "@/pages/Users";
+import Roles from "@/pages/Roles";
 import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
+import ParkingHistory from "@/pages/ParkingHistory";
 import { Toaster } from "sonner";
 import "./index.css";
 
@@ -30,8 +33,11 @@ function AppRoutes() {
         <Route path="/parking-lots" element={<ParkingLots />} />
         <Route path="/parking-lots/:id" element={<ParkingLotDetail />} />
         <Route path="/devices" element={<Devices />} />
+        <Route path="/devices/:id" element={<DeviceDetail />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/parking-history" element={<ParkingHistory />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/roles" element={<Roles />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
