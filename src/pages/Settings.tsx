@@ -26,7 +26,7 @@ export default function Settings() {
   const tabs = [{ id: "profile", label: "Profile", icon: User }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "security", label: "Security", icon: Lock }];
 
   return (
-    <div className="max-w-[1360px]">
+    <div className="w-full">
       <h1 className="text-[22px] font-bold text-slate-900 mb-6">Settings</h1>
       <div className="flex gap-6">
         <div className="w-52 shrink-0 space-y-1">
@@ -81,7 +81,7 @@ export default function Settings() {
           {tab === "security" && (
             <div className="bg-white rounded-2xl card-shadow p-6">
               <h2 className="text-[16px] font-bold text-slate-900 mb-6">Change Password</h2>
-              <form onSubmit={changePw} className="max-w-sm space-y-5">
+              <form onSubmit={changePw} className="max-w-md space-y-5">
                 {pwMsg && <div className={`text-[13px] rounded-xl px-4 py-3 border font-medium ${pwMsg === "success" ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-red-700 bg-red-50 border-red-100"}`}>{pwMsg === "success" ? "Password changed successfully" : "Failed to change password"}</div>}
                 <div><label className="text-[13px] font-semibold text-slate-700 mb-2 block">Current Password</label><Input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="h-10 rounded-xl text-[13px] border-slate-200" required /></div>
                 <div><label className="text-[13px] font-semibold text-slate-700 mb-2 block">New Password</label><Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} className="h-10 rounded-xl text-[13px] border-slate-200" required /></div>

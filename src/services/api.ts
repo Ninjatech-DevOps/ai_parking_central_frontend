@@ -1,8 +1,8 @@
 import axios from "axios";
 import type {
-  PaginatedResponse, TokenResponse, User, State, City, Taluka, Village, Area,
+  PaginatedResponse, TokenResponse, User, UserMe, State, City, Taluka, Village, Area,
   Location, Floor, Zone, ParkingSlot, Device, DeviceCommand, AlertEvent,
-  Camera, CanvasResponse,
+  Camera, CanvasResponse, ParkingSession, Role, PermissionItem,
 } from "@/types/api";
 
 const api = axios.create({ baseURL: "/api/v1", headers: { "Content-Type": "application/json" } });
@@ -45,7 +45,7 @@ export const authApi = {
 
 export const usersApi = {
   list: (params?: string) => api.get<PaginatedResponse<User>>(`/users?${params || ""}`),
-  me: () => api.get<User>("/users/me"),
+  me: () => api.get<UserMe>("/users/me"),
   create: (d: Record<string, unknown>) => api.post<User>("/users", d),
   update: (id: string, d: Record<string, unknown>) => api.patch<User>(`/users/${id}`, d),
   delete: (id: string) => api.delete(`/users/${id}`),
@@ -109,6 +109,13 @@ export const camerasApi = {
   update: (id: string, d: Record<string, unknown>) => api.patch<Camera>(`/cameras/${id}`, d),
   delete: (id: string) => api.delete(`/cameras/${id}`),
   slotConfig: (id: string, slots: Record<string, unknown>[]) => api.post(`/cameras/${id}/slot-config`, { slots }),
+  getSnapshot: (id: string) => api.get(`/cameras/${id}/snapshot?_t=${Date.now()}`, { responseType: "arraybuffer" }),
+  captureSnapshot: (id: string) => api.post(`/cameras/${id}/capture-snapshot`),
+  calibrateSlot: (cameraId: string, slotId: string) => api.post(`/cameras/${cameraId}/slots/${slotId}/calibrate`),
+  snapshotBlobUrl: async (id: string) => {
+    const resp = await api.get(`/cameras/${id}/snapshot?_t=${Date.now()}`, { responseType: "arraybuffer" });
+    return URL.createObjectURL(new Blob([resp.data], { type: "image/jpeg" }));
+  },
 };
 
 export const floorsApi = {
@@ -142,11 +149,16 @@ export const devicesApi = {
   create: (d: Record<string, unknown>) => api.post<Device>("/devices", d),
   update: (id: string, d: Record<string, unknown>) => api.patch<Device>(`/devices/${id}`, d),
   delete: (id: string) => api.delete(`/devices/${id}`),
-  getSnapshot: (id: string) => api.get(`/devices/${id}/snapshot`, { responseType: "arraybuffer" }),
+  getSnapshot: (id: string) => api.get(`/devices/${id}/snapshot?_t=${Date.now()}`, { responseType: "arraybuffer" }),
 };
 
 export const rolesApi = {
-  list: () => api.get<PaginatedResponse<{ id: string; name: string; description: string | null }>>("/roles"),
+  list: (params?: string) => api.get<PaginatedResponse<Role>>(`/roles?${params || ""}`),
+  get: (id: string) => api.get<Role>(`/roles/${id}`),
+  create: (d: Record<string, unknown>) => api.post<Role>("/roles", d),
+  update: (id: string, d: Record<string, unknown>) => api.patch<Role>(`/roles/${id}`, d),
+  delete: (id: string) => api.delete(`/roles/${id}`),
+  permissions: () => api.get<PermissionItem[]>("/roles/permissions"),
 };
 
 export const commandsApi = {
@@ -156,12 +168,27 @@ export const commandsApi = {
   updateDevice: (deviceId: string, image: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/update?image=${image}`),
   snapshot: (deviceId: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/snapshot`),
   history: (deviceId: string, limit = 20) => api.get<DeviceCommand[]>(`/device-commands/${deviceId}/history?limit=${limit}`),
+  status: (commandId: string) => api.get<DeviceCommand>(`/device-commands/status/${commandId}`),
+};
+
+// ─── Slot Events / Parking History ───
+export const slotEventsApi = {
+  history: (params?: string) => api.get<PaginatedResponse<ParkingSession>>(`/slot-events/history?${params || "page_size=20"}`),
+  bySlot: (slotId: string, params?: string) => api.get<ParkingSession[]>(`/slot-events/${slotId}?${params || ""}`),
+};
+
+// ─── Reports ───
+export const reportsApi = {
+  summary: (params?: string) => api.get<any>(`/reports/summary?${params || ""}`),
+  exportCsvUrl: (params?: string) => `/api/v1/reports/export-csv?${params || ""}`,
 };
 
 // ─── Alerts ───
 export const alertsApi = {
   list: (params?: string) => api.get<PaginatedResponse<AlertEvent>>(`/alerts?${params || "page_size=50"}`),
   get: (id: string) => api.get<AlertEvent>(`/alerts/${id}`),
+  acknowledge: (id: string) => api.patch<AlertEvent>(`/alerts/${id}/acknowledge`),
+  resolve: (id: string) => api.patch<AlertEvent>(`/alerts/${id}/resolve`),
 };
 
 // ─── Notification Preferences ───

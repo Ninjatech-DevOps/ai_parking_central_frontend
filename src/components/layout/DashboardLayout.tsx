@@ -2,7 +2,6 @@ import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
-import GlobalFilter from "@/components/GlobalFilter";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function DashboardLayout() {
@@ -22,11 +21,10 @@ export default function DashboardLayout() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fb]">
+    <div className="flex h-screen bg-[#f8f9fb] overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <Navbar />
-        <GlobalFilter />
+      <div className="flex-1 flex flex-col h-screen min-w-0">
+        <div className="no-print"><Navbar /></div>
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 overflow-auto">
           <ErrorBoundary>
             <Outlet />

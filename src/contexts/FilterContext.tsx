@@ -2,31 +2,30 @@ import {
   createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { citiesApi, talukasApi, villagesApi, areasApi, statesApi } from "@/services/api";
-import type { State, City, Taluka, Village, Area } from "@/types/api";
+import { citiesApi, areasApi, statesApi, locationsApi } from "@/services/api";
+import type { State, City, Area, Location } from "@/types/api";
 
 interface FilterState {
+  // Locked values (auto-set, not user-selectable)
   stateId: string;
   cityId: string;
-  talukaId: string;
-  villageId: string;
+  cityName: string;
+
+  // User-selectable filters
   areaId: string;
+  locationId: string;
 
-  states: State[];
-  cities: City[];
-  talukas: Taluka[];
-  villages: Village[];
   areas: Area[];
+  locations: Location[];
 
-  setCityId: (id: string) => void;
-  setTalukaId: (id: string) => void;
-  setVillageId: (id: string) => void;
   setAreaId: (id: string) => void;
+  setLocationId: (id: string) => void;
   resetFilters: () => void;
 
-  // Query params string for API calls — pass directly to backend
-  locationQueryParams: string;
-  deviceQueryParams: string;
+  // Query params for API calls
+  queryParams: string;          // most specific: location_id > area_id > city_id
+  locationQueryParams: string;  // alias for queryParams (backward compat)
+  deviceQueryParams: string;    // devices filter by city_id
   alertQueryParams: string;
   filterLabel: string;
   isFiltering: boolean;
@@ -37,121 +36,97 @@ const FilterContext = createContext<FilterState | null>(null);
 export function FilterProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [stateId, setStateId] = useState("");
-  const [cityId, setCityIdRaw] = useState("");
-  const [talukaId, setTalukaIdRaw] = useState("");
-  const [villageId, setVillageIdRaw] = useState("");
+  const [cityId, setCityId] = useState("");
+  const [cityName, setCityName] = useState("Ahmedabad");
   const [areaId, setAreaIdRaw] = useState("");
+  const [locationId, setLocationIdRaw] = useState("");
 
-  const [states, setStates] = useState<State[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
-  const [talukas, setTalukas] = useState<Taluka[]>([]);
-  const [villages, setVillages] = useState<Village[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
 
-  // Load states (only when logged in)
+  // Auto-lock to Gujarat → Ahmedabad on login
   useEffect(() => {
     if (!user) return;
     statesApi.list().then(({ data }) => {
-      setStates(data.items);
       const gj = data.items.find((s) => s.code === "GJ");
-      if (gj) setStateId(gj.id);
+      if (gj) {
+        setStateId(gj.id);
+        citiesApi.byState(gj.id).then(({ data: cd }) => {
+          const ahm = cd.items.find((c) => c.name.toLowerCase().includes("ahmedabad"));
+          if (ahm) { setCityId(ahm.id); setCityName(ahm.name); }
+          else if (cd.items.length > 0) { setCityId(cd.items[0].id); setCityName(cd.items[0].name); }
+        });
+      }
     }).catch(() => {});
   }, [user]);
 
-  // Load cities when state set
+  // Load areas for Ahmedabad (city-level only, taluka_id is null)
   useEffect(() => {
-    if (!stateId || !user) return;
-    citiesApi.byState(stateId).then(({ data }) => setCities(data.items)).catch(() => {});
-  }, [stateId, user]);
-
-  // Load talukas when city changes
-  useEffect(() => {
-    if (!cityId) { setTalukas([]); return; }
-    talukasApi.byCity(cityId).then(({ data }) => setTalukas(data.items)).catch(() => {});
+    if (!cityId) return;
+    areasApi.list(`city_id=${cityId}&page_size=500`).then(({ data }) => {
+      setAreas(data.items.filter((a: Area) => !a.taluka_id));
+    }).catch(() => {});
   }, [cityId]);
 
-  // Load villages when taluka changes
+  // Load locations — filtered by area if selected, otherwise all in city
   useEffect(() => {
-    if (!talukaId) { setVillages([]); return; }
-    villagesApi.byTaluka(talukaId).then(({ data }) => setVillages(data.items)).catch(() => {});
-  }, [talukaId]);
+    if (!cityId) return;
+    const params = areaId
+      ? `area_id=${areaId}&page_size=200`
+      : `city_id=${cityId}&page_size=200`;
+    locationsApi.list(params).then(({ data }) => setLocations(data.items)).catch(() => {});
+  }, [cityId, areaId]);
 
-  // Load areas — filter by most specific selection
-  // When "City" default selected: show areas where taluka_id IS NULL (city-level only)
-  // When taluka selected but village is default: show areas where taluka_id=X AND village_id IS NULL
-  // When specific village selected: show areas where village_id=Y
-  useEffect(() => {
-    if (!cityId) { setAreas([]); return; }
+  const setAreaId = useCallback((id: string) => {
+    setAreaIdRaw(id);
+    setLocationIdRaw(""); // reset location when area changes
+  }, []);
+  const setLocationId = useCallback((id: string) => { setLocationIdRaw(id); }, []);
+  const resetFilters = useCallback(() => { setAreaIdRaw(""); setLocationIdRaw(""); }, []);
 
-    if (villageId) {
-      // Specific village → show only that village's areas
-      areasApi.list(`village_id=${villageId}&page_size=500`).then(({ data }) => setAreas(data.items)).catch(() => {});
-    } else if (talukaId) {
-      // Taluka selected, no village → show taluka-level areas only (village_id is null)
-      areasApi.list(`taluka_id=${talukaId}&page_size=500`).then(({ data }) => {
-        setAreas(data.items.filter((a: Area) => !a.village_id));
-      }).catch(() => {});
-    } else {
-      // City selected, no taluka → show city-level areas only (taluka_id is null)
-      areasApi.list(`city_id=${cityId}&page_size=500`).then(({ data }) => {
-        setAreas(data.items.filter((a: Area) => !a.taluka_id));
-      }).catch(() => {});
-    }
-  }, [cityId, talukaId, villageId]);
-
-  // Cascade resets
-  const setCityId = useCallback((id: string) => {
-    setCityIdRaw(id); setTalukaIdRaw(""); setVillageIdRaw(""); setAreaIdRaw("");
-  }, []);
-  const setTalukaId = useCallback((id: string) => {
-    setTalukaIdRaw(id); setVillageIdRaw(""); setAreaIdRaw("");
-  }, []);
-  const setVillageId = useCallback((id: string) => {
-    setVillageIdRaw(id); setAreaIdRaw("");
-  }, []);
-  const setAreaId = useCallback((id: string) => { setAreaIdRaw(id); }, []);
-  const resetFilters = useCallback(() => {
-    setCityIdRaw(""); setTalukaIdRaw(""); setVillageIdRaw(""); setAreaIdRaw("");
-  }, []);
-
-  // Build backend query params — use the most specific filter available
-  const locationQueryParams = useMemo(() => {
+  // Build query params — most specific wins
+  const queryParams = useMemo(() => {
     const p = new URLSearchParams();
-    if (areaId) p.set("area_id", areaId);
-    else if (villageId) p.set("village_id", villageId);
-    else if (talukaId) p.set("taluka_id", talukaId);
+    if (locationId) p.set("location_id", locationId);
+    else if (areaId) p.set("area_id", areaId);
     else if (cityId) p.set("city_id", cityId);
     return p.toString();
-  }, [cityId, talukaId, villageId, areaId]);
+  }, [cityId, areaId, locationId]);
 
+  // Devices: most specific filter wins
   const deviceQueryParams = useMemo(() => {
     const p = new URLSearchParams();
-    if (cityId) p.set("city_id", cityId);
+    if (locationId) p.set("location_id", locationId);
+    else if (areaId) p.set("area_id", areaId);
+    else if (cityId) p.set("city_id", cityId);
     return p.toString();
-  }, [cityId]);
+  }, [cityId, areaId, locationId]);
 
+  // Alerts: most specific filter wins
   const alertQueryParams = useMemo(() => {
-    // Alerts filter by location_id — for now just return empty (backend scope handles it)
-    return "";
-  }, []);
+    const p = new URLSearchParams();
+    if (locationId) p.set("location_id", locationId);
+    else if (areaId) p.set("area_id", areaId);
+    else if (cityId) p.set("city_id", cityId);
+    return p.toString();
+  }, [cityId, areaId, locationId]);
 
-  const isFiltering = cityId !== "";
+  const isFiltering = areaId !== "" || locationId !== "";
 
   const filterLabel = useMemo(() => {
-    const parts: string[] = [];
-    if (cityId) { const c = cities.find((x) => x.id === cityId); if (c) parts.push(c.name); }
-    if (talukaId) { const t = talukas.find((x) => x.id === talukaId); if (t) parts.push(t.name); }
-    if (villageId) { const v = villages.find((x) => x.id === villageId); if (v) parts.push(v.name); }
+    const parts: string[] = [cityName];
     if (areaId) { const a = areas.find((x) => x.id === areaId); if (a) parts.push(a.name); }
-    return parts.length > 0 ? parts.join(" → ") : "All Gujarat";
-  }, [cityId, talukaId, villageId, areaId, cities, talukas, villages, areas]);
+    if (locationId) { const l = locations.find((x) => x.id === locationId); if (l) parts.push(l.name); }
+    return parts.join(" → ");
+  }, [cityName, areaId, locationId, areas, locations]);
 
   return (
     <FilterContext.Provider value={{
-      stateId, cityId, talukaId, villageId, areaId,
-      states, cities, talukas, villages, areas,
-      setCityId, setTalukaId, setVillageId, setAreaId, resetFilters,
-      locationQueryParams, deviceQueryParams, alertQueryParams,
+      stateId, cityId, cityName,
+      areaId, locationId,
+      areas, locations,
+      setAreaId, setLocationId, resetFilters,
+      queryParams, locationQueryParams: queryParams, deviceQueryParams, alertQueryParams,
       filterLabel, isFiltering,
     }}>
       {children}

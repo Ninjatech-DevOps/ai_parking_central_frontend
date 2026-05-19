@@ -120,3 +120,55 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ─── Screen-only / Print-only toggle ─── */
+.screen-hide { display: none; }
+
+/* ─── Print styles ─── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm;
+  }
+
+  /* Toggle visibility */
+  .no-print, .print-hide, [data-no-print] { display: none !important; }
+  .screen-hide { display: table-row-group !important; }
+  .print-header, .print-footer { display: block !important; }
+
+  /* Reset layout — remove sidebar/navbar flex container */
+  body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .flex.h-screen { display: block !important; height: auto !important; overflow: visible !important; }
+  main { padding: 0 12px !important; overflow: visible !important; height: auto !important; }
+
+  /* Cards */
+  .card-shadow { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+
+  /* Force all background colors to print */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  /* Page breaks */
+  .print-break-before { break-before: page; }
+  .print-break-avoid { break-inside: avoid; }
+
+  /* Table styling for PDF */
+  .print-table { font-size: 9px !important; }
+  .print-table thead { display: table-header-group; }
+  .print-table thead tr { background: #f8fafc !important; }
+  .print-table thead th { padding: 4px 6px !important; font-size: 7px !important; border-bottom: 2px solid #cbd5e1 !important; }
+  .print-table .print-row td { padding: 3px 6px !important; font-size: 8px !important; }
+  .print-table .print-row:nth-child(even) { background: #f8fafc !important; }
+  tr { break-inside: avoid; }
+
+  /* Tighter spacing */
+  .space-y-5 > * + * { margin-top: 10px !important; }
+  .gap-3 { gap: 6px !important; }
+  .gap-5 { gap: 8px !important; }
+  .rounded-2xl { border-radius: 8px !important; }
+  .p-5, .p-4 { padding: 10px !important; }
+  .mb-6 { margin-bottom: 10px !important; }
+
+  /* Stat cards compact */
+  .text-\[20px\] { font-size: 16px !important; }
+  .text-\[22px\] { font-size: 18px !important; }
+}

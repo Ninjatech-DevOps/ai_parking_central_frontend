@@ -193,7 +193,7 @@ export default function ParkingLotDetail() {
   ];
 
   return (
-    <div className="max-w-[1360px]">
+    <div className="w-full">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/parking-lots"><Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-slate-100"><ArrowLeft size={18} /></Button></Link>
