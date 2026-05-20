@@ -68,7 +68,7 @@ export default function Roles() {
   // ─── Fetch roles ───
   const fetchRoles = useCallback(async () => {
     const { data } = await rolesApi.list("page_size=50");
-    setRoles(data.items);
+    setRoles(data.items || []);
   }, []);
   usePolling(fetchRoles, 30000);
 

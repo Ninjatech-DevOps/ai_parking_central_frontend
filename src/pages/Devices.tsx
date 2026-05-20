@@ -57,19 +57,19 @@ export default function Devices() {
   const { deviceQueryParams, queryParams: filterParams, areas: globalAreas } = useFilter();
   useEffect(() => {
     const params = filterParams ? `page_size=100&${filterParams}` : "page_size=100";
-    locationsApi.list(params).then(({ data }) => setLocations(data.items));
+    locationsApi.list(params).then(({ data }) => setLocations(data.items || []));
   }, [filterParams]);
 
   useEffect(() => {
     if (formLocationId) {
-      floorsApi.byLocation(formLocationId).then(({ data }) => setFloors(data.items)).catch(() => setFloors([]));
+      floorsApi.byLocation(formLocationId).then(({ data }) => setFloors(data.items || [])).catch(() => setFloors([]));
     } else { setFloors([]); }
     setFormFloorId(""); setFormZoneId(""); setZones([]);
   }, [formLocationId]);
 
   useEffect(() => {
     if (formFloorId) {
-      zonesApi.byFloor(formFloorId).then(({ data }) => setZones(data.items)).catch(() => setZones([]));
+      zonesApi.byFloor(formFloorId).then(({ data }) => setZones(data.items || [])).catch(() => setZones([]));
     } else { setZones([]); }
     setFormZoneId("");
   }, [formFloorId]);
@@ -86,7 +86,7 @@ export default function Devices() {
       new URLSearchParams(deviceQueryParams).forEach((v, k) => p.set(k, v));
     }
     const { data } = await devicesApi.list(p.toString());
-    setDevices(data.items); setTotal(data.total); setTotalPages(data.total_pages);
+    setDevices(data.items || []); setTotal(data.total || 0); setTotalPages(data.total_pages || 0);
   }, [statusFilter, deviceQueryParams, page]);
   usePolling(fetchDevices, 10000);
 

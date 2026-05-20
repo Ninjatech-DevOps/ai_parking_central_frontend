@@ -5,7 +5,8 @@ import type {
   Camera, CanvasResponse, ParkingSession, Role, PermissionItem,
 } from "@/types/api";
 
-const api = axios.create({ baseURL: "/api/v1", headers: { "Content-Type": "application/json" } });
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const api = axios.create({ baseURL: API_BASE, headers: { "Content-Type": "application/json" } });
 
 api.interceptors.request.use((c) => {
   const t = localStorage.getItem("access_token");
@@ -21,7 +22,7 @@ api.interceptors.response.use(
       if (rt && !err.config._retry) {
         err.config._retry = true;
         try {
-          const { data } = await axios.post("/api/v1/auth/refresh", { refresh_token: rt });
+          const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refresh_token: rt });
           localStorage.setItem("access_token", data.access_token);
           localStorage.setItem("refresh_token", data.refresh_token);
           err.config.headers.Authorization = `Bearer ${data.access_token}`;
@@ -32,6 +33,12 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+function qs(params: Record<string, string | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) p.set(k, v); }
+  return p.toString();
+}
 
 export const authApi = {
   login: (email: string, password: string) => api.post<TokenResponse>("/auth/login", { email, password }),
@@ -174,7 +181,7 @@ export const slotEventsApi = {
 // ─── Reports ───
 export const reportsApi = {
   summary: (params?: string) => api.get<any>(`/reports/summary?${params || ""}`),
-  exportCsvUrl: (params?: string) => `/api/v1/reports/export-csv?${params || ""}`,
+  exportCsvUrl: (params?: string) => `${API_BASE}/reports/export-csv?${params || ""}`,
 };
 
 // ─── Alerts ───

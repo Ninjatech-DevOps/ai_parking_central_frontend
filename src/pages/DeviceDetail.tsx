@@ -11,7 +11,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ArrowLeft, Plus, Camera as CamIcon, Trash2, Crosshair, Eye, PenTool, Square, Pentagon,
-  Monitor, Wifi, WifiOff,
+  RefreshCw, Monitor, Wifi, WifiOff,
 } from "lucide-react";
 import type { Device, Camera, ParkingSlot } from "@/types/api";
 
@@ -62,12 +62,13 @@ export default function DeviceDetail() {
   const fetchCameras = useCallback(async (autoSelectId?: string) => {
     if (!id) return;
     const { data } = await camerasApi.byDevice(id);
-    setCameras(data.items);
+    const camItems = data.items || [];
+    setCameras(camItems);
     if (autoSelectId) {
-      const target = data.items.find((c: Camera) => c.id === autoSelectId);
+      const target = camItems.find((c: Camera) => c.id === autoSelectId);
       if (target) setSelectedCamera(target);
-    } else if (data.items.length > 0 && !activeCameraIdRef.current) {
-      setSelectedCamera(data.items[0]);
+    } else if (camItems.length > 0 && !activeCameraIdRef.current) {
+      setSelectedCamera(camItems[0]);
     }
   }, [id]);
 
@@ -75,9 +76,10 @@ export default function DeviceDetail() {
   async function fetchSlotsForCamera(cameraId: string, autoLabel = true) {
     const { data } = await slotsApi.list(`camera_id=${cameraId}&page_size=100`);
     if (activeCameraIdRef.current !== cameraId) return; // stale — discard
-    setSlots(data.items);
+    const slotItems = data.items || [];
+    setSlots(slotItems);
     if (autoLabel) {
-      const count = data.items.length;
+      const count = slotItems.length;
       setNextLabel(`${String.fromCharCode(65 + Math.floor(count / 10))}-${String(count % 10 + 1).padStart(2, "0")}`);
     }
   }
@@ -142,8 +144,9 @@ export default function DeviceDetail() {
           });
           // Refresh camera dims
           const { data } = await camerasApi.byDevice(id!);
-          setCameras(data.items);
-          const updated = data.items.find((c: Camera) => c.id === camId);
+          const refreshedCams = data.items || [];
+          setCameras(refreshedCams);
+          const updated = refreshedCams.find((c: Camera) => c.id === camId);
           if (updated) setSelectedCamera(updated);
         } catch { /* keep trying */ }
       }
@@ -502,7 +505,7 @@ export default function DeviceDetail() {
           <div>
             <Label className="text-[13px] font-semibold text-slate-700">Type</Label>
             <div className="mt-2">
-              <Select value={camType} onValueChange={(v) => setCamType(v ?? "USB")}>
+              <Select value={camType} onValueChange={setCamType}>
                 <SelectTrigger className="h-10 rounded-xl text-[13px]"><span>{camType}</span></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="USB">USB</SelectItem>

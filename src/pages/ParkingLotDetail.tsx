@@ -64,8 +64,9 @@ export default function ParkingLotDetail() {
   const loadFloors = useCallback(async () => {
     if (!id) return;
     const { data } = await floorsApi.byLocation(id);
-    setFloors(data.items);
-    if (data.items.length > 0 && !expandedFloor) setExpandedFloor(data.items[0].id);
+    const items = data.items || [];
+    setFloors(items);
+    if (items.length > 0 && !expandedFloor) setExpandedFloor(items[0].id);
   }, [id]);
   useEffect(() => { loadFloors(); }, [loadFloors]);
 
@@ -73,8 +74,9 @@ export default function ParkingLotDetail() {
   useEffect(() => {
     if (!expandedFloor) return;
     zonesApi.byFloor(expandedFloor).then(({ data }) => {
-      setZones((prev) => ({ ...prev, [expandedFloor]: data.items }));
-      if (data.items.length > 0 && !expandedZone) setExpandedZone(data.items[0].id);
+      const zItems = data.items || [];
+      setZones((prev) => ({ ...prev, [expandedFloor]: zItems }));
+      if (zItems.length > 0 && !expandedZone) setExpandedZone(zItems[0].id);
     });
   }, [expandedFloor]);
 
@@ -82,7 +84,7 @@ export default function ParkingLotDetail() {
   useEffect(() => {
     if (!expandedZone) return;
     slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => {
-      setSlots((prev) => ({ ...prev, [expandedZone]: data.items }));
+      setSlots((prev) => ({ ...prev, [expandedZone]: data.items || [] }));
     });
   }, [expandedZone]);
 
@@ -91,10 +93,11 @@ export default function ParkingLotDetail() {
     if (floors.length === 0) return;
     floors.forEach((f) => {
       zonesApi.byFloor(f.id).then(({ data: zData }) => {
-        setZones((prev) => ({ ...prev, [f.id]: zData.items }));
-        zData.items.forEach((z) => {
+        const zItems = zData.items || [];
+        setZones((prev) => ({ ...prev, [f.id]: zItems }));
+        zItems.forEach((z) => {
           slotsApi.list(`zone_id=${z.id}&page_size=200`).then(({ data: sData }) => {
-            setSlots((prev) => ({ ...prev, [z.id]: sData.items }));
+            setSlots((prev) => ({ ...prev, [z.id]: sData.items || [] }));
           });
         });
       });
@@ -105,10 +108,11 @@ export default function ParkingLotDetail() {
   useEffect(() => {
     if (!id) return;
     devicesApi.list(`location_id=${id}&page_size=50`).then(({ data }) => {
-      setDevices(data.items);
-      data.items.forEach((d) => {
+      const devItems = data.items || [];
+      setDevices(devItems);
+      devItems.forEach((d) => {
         camerasApi.byDevice(d.id).then(({ data: camData }) => {
-          setCameras((prev) => ({ ...prev, [d.id]: camData.items }));
+          setCameras((prev) => ({ ...prev, [d.id]: camData.items || [] }));
         });
       });
     });
@@ -137,7 +141,7 @@ export default function ParkingLotDetail() {
       if (editingId) await zonesApi.update(editingId, { name: formName, capacity: parseInt(formCapacity) || 0 });
       else await zonesApi.create({ name: formName, floor_id: formParentId, capacity: parseInt(formCapacity) || 0 });
       setShowZoneForm(false);
-      if (expandedFloor) zonesApi.byFloor(expandedFloor).then(({ data }) => setZones((p) => ({ ...p, [expandedFloor!]: data.items })));
+      if (expandedFloor) zonesApi.byFloor(expandedFloor).then(({ data }) => setZones((p) => ({ ...p, [expandedFloor!]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
   }
 
@@ -147,7 +151,7 @@ export default function ParkingLotDetail() {
       if (editingId) await slotsApi.update(editingId, { label: formName });
       else await slotsApi.create({ label: formName, zone_id: formParentId });
       setShowSlotForm(false);
-      if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items })));
+      if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
   }
 
@@ -157,7 +161,7 @@ export default function ParkingLotDetail() {
       if (editingId) await camerasApi.update(editingId, { position_label: formName });
       else await camerasApi.create({ device_id: formDeviceId, position_label: formName });
       setShowCameraForm(false);
-      camerasApi.byDevice(formDeviceId).then(({ data }) => setCameras((p) => ({ ...p, [formDeviceId]: data.items })));
+      camerasApi.byDevice(formDeviceId).then(({ data }) => setCameras((p) => ({ ...p, [formDeviceId]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
   }
 
@@ -165,8 +169,8 @@ export default function ParkingLotDetail() {
     if (!deleting) return; setDeleteLoading(true);
     try {
       if (deleting.type === "floor") { await floorsApi.delete(deleting.id); loadFloors(); }
-      else if (deleting.type === "zone") { await zonesApi.delete(deleting.id); if (expandedFloor) zonesApi.byFloor(expandedFloor).then(({ data }) => setZones((p) => ({ ...p, [expandedFloor!]: data.items }))); }
-      else if (deleting.type === "slot") { await slotsApi.delete(deleting.id); if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items }))); }
+      else if (deleting.type === "zone") { await zonesApi.delete(deleting.id); if (expandedFloor) zonesApi.byFloor(expandedFloor).then(({ data }) => setZones((p) => ({ ...p, [expandedFloor!]: data.items || [] }))); }
+      else if (deleting.type === "slot") { await slotsApi.delete(deleting.id); if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items || [] }))); }
       else if (deleting.type === "camera") { await camerasApi.delete(deleting.id); }
       setDeleting(null);
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setDeleteLoading(false); }

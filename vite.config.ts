@@ -88,6 +88,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 3000,
+      allowedHosts: ["aiparkingcentralfe.kl.business"],
       proxy: {
         "/api": {
           target: "http://localhost:8100",

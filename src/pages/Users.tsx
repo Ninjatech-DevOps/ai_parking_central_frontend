@@ -61,20 +61,20 @@ export default function Users() {
   const { cityId: lockedCityId, cityName: lockedCityName } = useFilter();
 
   useEffect(() => {
-    rolesApi.list().then(({ data }) => setRoles(data.items)).catch(() => {});
+    rolesApi.list().then(({ data }) => setRoles(data.items || [])).catch(() => {});
   }, []);
 
   // Load areas for Ahmedabad (city-level only)
   useEffect(() => {
     if (lockedCityId) {
-      areasApi.byCity(lockedCityId).then(({ data }) => setScopeAreas(data.items.filter((a: Area) => !a.taluka_id))).catch(() => {});
+      areasApi.byCity(lockedCityId).then(({ data }) => setScopeAreas((data.items || []).filter((a: Area) => !a.taluka_id))).catch(() => {});
     }
   }, [lockedCityId]);
 
   // Load locations when area selected
   useEffect(() => {
     if (pickAreaId) {
-      locationsApi.list(`area_id=${pickAreaId}&page_size=200`).then(({ data }) => setScopeLocations(data.items)).catch(() => {});
+      locationsApi.list(`area_id=${pickAreaId}&page_size=200`).then(({ data }) => setScopeLocations(data.items || [])).catch(() => {});
     } else {
       setScopeLocations([]);
     }
@@ -84,8 +84,8 @@ export default function Users() {
   // ─── Fetch users ───
   const fetchUsers = useCallback(async () => {
     const { data } = await usersApi.list(`page=${page}&page_size=${pageSize}`);
-    setUsers(data.items);
-    setTotal(data.total);
+    setUsers(data.items || []);
+    setTotal(data.total || 0);
   }, [page]);
   usePolling(fetchUsers, 30000);
 

@@ -38,13 +38,13 @@ export default function Dashboard() {
       devicesApi.list(devParams), alertsApi.list(alertQueryParams ? `page_size=50&${alertQueryParams}` : "page_size=50"),
       locationsApi.list(locParams),
     ]);
-    setDevices(d.data.items); setTotalDevices(d.data.total);
-    setAlerts(a.data.items); setTotalAlerts(a.data.total);
-    setTotalLocations(l.data.total);
+    setDevices(d.data.items || []); setTotalDevices(d.data.total || 0);
+    setAlerts(a.data.items || []); setTotalAlerts(a.data.total || 0);
+    setTotalLocations(l.data.total || 0);
 
     // Fetch canvas for each location — slot count derived from canvas
     const canvases = await Promise.all(
-      l.data.items.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
+      (l.data.items || []).map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
     );
     const validCanvases = canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0);
     setCanvasData(validCanvases);

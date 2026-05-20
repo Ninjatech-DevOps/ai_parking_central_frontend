@@ -1,4 +1,4 @@
-import { useState, useCallback, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/lib/toast";
 import { areasApi } from "@/services/api";
@@ -33,7 +33,7 @@ export default function LocationManagement() {
   const fetchAreas = useCallback(async () => {
     if (!cityId) return;
     const { data } = await areasApi.list(`city_id=${cityId}&page_size=500`);
-    const cityLevel = data.items.filter((a: Area) => !a.taluka_id);
+    const cityLevel = (data.items || []).filter((a: Area) => !a.taluka_id);
     setAreas(cityLevel);
     setTotal(cityLevel.length);
   }, [cityId]);
