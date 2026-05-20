@@ -32,7 +32,7 @@ export default function Locations() {
   const [formCities, setFormCities] = useState<City[]>([]);
   const [, setFormTalukas] = useState<Taluka[]>([]);
   const [, setFormVillages] = useState<Village[]>([]);
-  const [formAreas, setFormAreas] = useState<Area[]>([]);
+  const [, setFormAreas] = useState<Area[]>([]);
   const [formCityId, setFormCityId] = useState("");
   const [formTalukaId, setFormTalukaId] = useState("");
   const [formVillageId, setFormVillageId] = useState("");

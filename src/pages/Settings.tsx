@@ -1,5 +1,4 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { showSuccess } from "@/lib/toast";
 import { notifPrefsApi, usersApi } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
