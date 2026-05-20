@@ -3,7 +3,7 @@ import {
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { citiesApi, areasApi, statesApi, locationsApi } from "@/services/api";
-import type { State, City, Area, Location } from "@/types/api";
+import type { Area, Location } from "@/types/api";
 
 interface FilterState {
   // Locked values (auto-set, not user-selectable)

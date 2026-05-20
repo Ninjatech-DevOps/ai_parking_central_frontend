@@ -80,7 +80,7 @@ export default function Alerts() {
           <Search size={15} className="text-slate-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search alerts..." className="bg-transparent text-[13px] outline-none w-full text-slate-600 placeholder:text-slate-400" />
         </div>
-        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+        <Select value={severityFilter} onValueChange={(v) => setSeverityFilter(v ?? "all")}>
           <SelectTrigger className="w-40 h-10 rounded-xl border-slate-200 bg-white text-[13px] card-shadow">
             <span className="text-slate-600">{severityFilter === "all" ? "All Severity" : severityFilter}</span>
           </SelectTrigger>

@@ -5,7 +5,7 @@ import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import SearchSelect from "@/components/SearchSelect";
 import { ParkingSquare, Car, Timer, SlidersHorizontal, RotateCcw, ChevronDown } from "lucide-react";
-import type { ParkingSession, Location, Camera as CameraType, Area } from "@/types/api";
+import type { ParkingSession, Location, Area } from "@/types/api";
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) return "\u2014";
