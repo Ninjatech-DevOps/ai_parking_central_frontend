@@ -210,7 +210,7 @@ export default function Devices() {
           <Search size={15} className="text-slate-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search devices..." className="bg-transparent text-[13px] outline-none w-full text-slate-600 placeholder:text-slate-400" />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
           <SelectTrigger className="w-36 h-10 rounded-xl border-slate-200 bg-white text-[13px] card-shadow"><span className="text-slate-600">{statusFilter === "all" ? "All Status" : statusFilter}</span></SelectTrigger>
           <SelectContent className="rounded-xl"><SelectItem value="all">All Status</SelectItem><SelectItem value="ONLINE">Online</SelectItem><SelectItem value="OFFLINE">Offline</SelectItem></SelectContent>
         </Select>

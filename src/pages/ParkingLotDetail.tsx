@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type {
   Location, Device, Camera as CameraType, Floor, Zone, ParkingSlot,
-  CanvasResponse, PaginatedResponse,
+  CanvasResponse,
 } from "@/types/api";
 
 type Tab = "structure" | "devices" | "live" | "overview";

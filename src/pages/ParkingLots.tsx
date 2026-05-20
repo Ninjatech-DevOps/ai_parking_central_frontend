@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Plus, Pencil, Trash2, Search, MapPin, Eye } from "lucide-react";
-import type { Location, City, Taluka, Village, Area, PaginatedResponse } from "@/types/api";
+import type { Location, City, Taluka, Village, Area } from "@/types/api";
 
 export default function Locations() {
   const { hasPermission } = useAuth();
@@ -30,9 +30,9 @@ export default function Locations() {
 
   // Form state — hierarchy selectors
   const [formCities, setFormCities] = useState<City[]>([]);
-  const [formTalukas, setFormTalukas] = useState<Taluka[]>([]);
-  const [formVillages, setFormVillages] = useState<Village[]>([]);
-  const [formAreas, setFormAreas] = useState<Area[]>([]);
+  const [, setFormTalukas] = useState<Taluka[]>([]);
+  const [, setFormVillages] = useState<Village[]>([]);
+  const [, setFormAreas] = useState<Area[]>([]);
   const [formCityId, setFormCityId] = useState("");
   const [formTalukaId, setFormTalukaId] = useState("");
   const [formVillageId, setFormVillageId] = useState("");
@@ -69,13 +69,6 @@ export default function Locations() {
     if (!formTalukaId) { setFormVillages([]); return; }
     villagesApi.byTaluka(formTalukaId).then(({ data }) => setFormVillages(data.items));
   }, [formTalukaId]);
-
-  // Filter areas by level — same logic as global filter
-  const filteredFormAreas = formAreas.filter((a) => {
-    if (formVillageId) return a.village_id === formVillageId;
-    if (formTalukaId) return a.taluka_id === formTalukaId && !a.village_id;
-    return !a.taluka_id; // city-level only
-  });
 
   const fetchLocations = useCallback(async () => {
     const params = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
@@ -228,7 +221,7 @@ export default function Locations() {
 
           <div className="grid grid-cols-2 gap-4">
             <div><Label className="text-[13px] font-semibold text-slate-700">Type</Label>
-              <Select value={formType} onValueChange={setFormType}><SelectTrigger className="mt-2 h-10 rounded-xl text-[13px] border-slate-200"><span>{formType}</span></SelectTrigger><SelectContent className="rounded-xl">{["MALL","STREET","OPEN","COMMERCIAL","RESIDENTIAL"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
+              <Select value={formType} onValueChange={(v) => setFormType(v ?? "OPEN")}><SelectTrigger className="mt-2 h-10 rounded-xl text-[13px] border-slate-200"><span>{formType}</span></SelectTrigger><SelectContent className="rounded-xl">{["MALL","STREET","OPEN","COMMERCIAL","RESIDENTIAL"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
             </div>
             <div><Label className="text-[13px] font-semibold text-slate-700">Capacity</Label><Input type="number" value={formCapacity} onChange={(e) => setFormCapacity(e.target.value)} className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
           </div>

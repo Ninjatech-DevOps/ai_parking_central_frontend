@@ -11,7 +11,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ArrowLeft, Plus, Camera as CamIcon, Trash2, Crosshair, Eye, PenTool, Square, Pentagon,
-  RefreshCw, Monitor, Wifi, WifiOff,
+  Monitor, Wifi, WifiOff,
 } from "lucide-react";
 import type { Device, Camera, ParkingSlot } from "@/types/api";
 
@@ -502,7 +502,7 @@ export default function DeviceDetail() {
           <div>
             <Label className="text-[13px] font-semibold text-slate-700">Type</Label>
             <div className="mt-2">
-              <Select value={camType} onValueChange={setCamType}>
+              <Select value={camType} onValueChange={(v) => setCamType(v ?? "USB")}>
                 <SelectTrigger className="h-10 rounded-xl text-[13px]"><span>{camType}</span></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="USB">USB</SelectItem>

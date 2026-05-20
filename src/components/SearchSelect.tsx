@@ -31,15 +31,11 @@ export default function SearchSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div
-          role="button"
-          tabIndex={0}
-          className={`flex items-center justify-between gap-2 h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer ${className}`}
-        >
-          <span className="truncate">{selectedLabel}</span>
-          <ChevronDown size={12} className="text-slate-400 shrink-0" />
-        </div>
+      <PopoverTrigger
+        className={`flex items-center justify-between gap-2 h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer ${className}`}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown size={12} className="text-slate-400 shrink-0" />
       </PopoverTrigger>
       <PopoverContent className="w-[220px] p-0 rounded-xl" align="start">
         <Command>

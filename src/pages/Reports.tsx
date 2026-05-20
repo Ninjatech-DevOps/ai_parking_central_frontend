@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { reportsApi, areasApi } from "@/services/api";
 import SearchSelect from "@/components/SearchSelect";
@@ -56,7 +56,7 @@ interface ReportData {
 }
 
 export default function Reports() {
-  const { locations, queryParams } = useFilter();
+  const { locations } = useFilter();
   const [areas, setAreas] = useState<Area[]>([]);
   const [selectedArea, setSelectedArea] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
