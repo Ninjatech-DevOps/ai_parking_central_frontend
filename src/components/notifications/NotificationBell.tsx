@@ -44,7 +44,7 @@ export default function NotificationBell() {
     setLoading(true);
     try {
       const { data } = await notificationsApi.list("page_size=15");
-      setNotifications(data.items);
+      setNotifications(data.items || []);
     } catch {
       /* ignore */
     } finally {

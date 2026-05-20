@@ -69,7 +69,7 @@ export default function Reports() {
   const pageSize = 15;
 
   useEffect(() => {
-    areasApi.list("page_size=500").then(({ data }) => setAreas(data.items)).catch(() => {});
+    areasApi.list("page_size=500").then(({ data }) => setAreas(data.items || [])).catch(() => {});
   }, []);
 
   const filteredLocations = selectedArea

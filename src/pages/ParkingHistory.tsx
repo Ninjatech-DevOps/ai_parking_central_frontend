@@ -51,14 +51,14 @@ export default function ParkingHistory() {
 
   // Fetch filter options
   useEffect(() => {
-    areasApi.list("page_size=500").then(({ data }) => setAreas(data.items)).catch(() => {});
+    areasApi.list("page_size=500").then(({ data }) => setAreas(data.items || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
     const locParams = selectedArea
       ? `area_id=${selectedArea}&page_size=200`
       : `${queryParams}&page_size=200`;
-    locationsApi.list(locParams).then(({ data }) => setLocations(data.items)).catch(() => {});
+    locationsApi.list(locParams).then(({ data }) => setLocations(data.items || [])).catch(() => {});
   }, [queryParams, selectedArea]);
 
   // Build camera options with location context
@@ -123,9 +123,9 @@ export default function ParkingHistory() {
       if (endDate) params.set("end_date", new Date(endDate).toISOString());
 
       const { data } = await slotEventsApi.history(params.toString());
-      setSessions(data.items);
-      setTotal(data.total);
-      setTotalPages(data.total_pages);
+      setSessions(data.items || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.total_pages || 0);
     } catch {
       setSessions([]);
       setTotal(0);

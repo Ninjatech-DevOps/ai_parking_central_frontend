@@ -51,23 +51,23 @@ export default function Locations() {
   const [allAreas, setAllAreas] = useState<Area[]>([]);
 
   useEffect(() => {
-    citiesApi.list("page_size=100").then(({ data }) => setFormCities(data.items));
-    talukasApi.list("page_size=500").then(({ data }) => setAllTalukas(data.items));
-    villagesApi.list("page_size=500").then(({ data }) => setAllVillages(data.items));
-    areasApi.list("page_size=1000").then(({ data }) => setAllAreas(data.items));
+    citiesApi.list("page_size=100").then(({ data }) => setFormCities(data.items || []));
+    talukasApi.list("page_size=500").then(({ data }) => setAllTalukas(data.items || []));
+    villagesApi.list("page_size=500").then(({ data }) => setAllVillages(data.items || []));
+    areasApi.list("page_size=1000").then(({ data }) => setAllAreas(data.items || []));
   }, []);
 
   // Cascade: city → talukas + areas
   useEffect(() => {
     if (!formCityId) { setFormTalukas([]); setFormAreas([]); return; }
-    talukasApi.byCity(formCityId).then(({ data }) => setFormTalukas(data.items));
-    areasApi.byCity(formCityId).then(({ data }) => setFormAreas(data.items));
+    talukasApi.byCity(formCityId).then(({ data }) => setFormTalukas(data.items || []));
+    areasApi.byCity(formCityId).then(({ data }) => setFormAreas(data.items || []));
   }, [formCityId]);
 
   // Cascade: taluka → villages
   useEffect(() => {
     if (!formTalukaId) { setFormVillages([]); return; }
-    villagesApi.byTaluka(formTalukaId).then(({ data }) => setFormVillages(data.items));
+    villagesApi.byTaluka(formTalukaId).then(({ data }) => setFormVillages(data.items || []));
   }, [formTalukaId]);
 
   // Filter areas by level — same logic as global filter
@@ -80,7 +80,7 @@ export default function Locations() {
   const fetchLocations = useCallback(async () => {
     const params = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
     const { data } = await locationsApi.list(params);
-    setLocations(data.items); setTotal(data.total);
+    setLocations(data.items || []); setTotal(data.total || 0);
   }, [queryParams]);
   usePolling(fetchLocations, 15000);
 

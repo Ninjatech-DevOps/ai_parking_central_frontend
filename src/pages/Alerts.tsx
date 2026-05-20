@@ -23,9 +23,9 @@ export default function Alerts() {
     const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
     if (severityFilter !== "all") p.set("severity", severityFilter);
     const { data } = await alertsApi.list(p.toString());
-    setAlerts(data.items);
-    setTotal(data.total);
-    setTotalPages(data.total_pages);
+    setAlerts(data.items || []);
+    setTotal(data.total || 0);
+    setTotalPages(data.total_pages || 0);
   }, [severityFilter, page]);
   usePolling(fetchAlerts, 10000);
 

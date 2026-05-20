@@ -48,13 +48,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     statesApi.list().then(({ data }) => {
-      const gj = data.items.find((s) => s.code === "GJ");
+      const gj = (data.items || []).find((s) => s.code === "GJ");
       if (gj) {
         setStateId(gj.id);
         citiesApi.byState(gj.id).then(({ data: cd }) => {
-          const ahm = cd.items.find((c) => c.name.toLowerCase().includes("ahmedabad"));
+          const cities = cd.items || [];
+          const ahm = cities.find((c) => c.name.toLowerCase().includes("ahmedabad"));
           if (ahm) { setCityId(ahm.id); setCityName(ahm.name); }
-          else if (cd.items.length > 0) { setCityId(cd.items[0].id); setCityName(cd.items[0].name); }
+          else if (cities.length > 0) { setCityId(cities[0].id); setCityName(cities[0].name); }
         });
       }
     }).catch(() => {});
@@ -64,7 +65,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!cityId) return;
     areasApi.list(`city_id=${cityId}&page_size=500`).then(({ data }) => {
-      setAreas(data.items.filter((a: Area) => !a.taluka_id));
+      setAreas((data.items || []).filter((a: Area) => !a.taluka_id));
     }).catch(() => {});
   }, [cityId]);
 
@@ -74,7 +75,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     const params = areaId
       ? `area_id=${areaId}&page_size=200`
       : `city_id=${cityId}&page_size=200`;
-    locationsApi.list(params).then(({ data }) => setLocations(data.items)).catch(() => {});
+    locationsApi.list(params).then(({ data }) => setLocations(data.items || [])).catch(() => {});
   }, [cityId, areaId]);
 
   const setAreaId = useCallback((id: string) => {
