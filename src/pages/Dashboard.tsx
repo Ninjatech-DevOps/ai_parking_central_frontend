@@ -19,7 +19,7 @@ const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { filterLabel, deviceQueryParams, queryParams, alertQueryParams } = useFilter();
+  const { filterLabel, deviceQueryParams, queryParams, alertQueryParams, locationId } = useFilter();
 
   const [devices, setDevices] = useState<Device[]>([]);
   const [totalDevices, setTotalDevices] = useState(0);
@@ -42,15 +42,20 @@ export default function Dashboard() {
     setAlerts(a.data.items || []); setTotalAlerts(a.data.total || 0);
     setTotalLocations(l.data.total || 0);
 
-    // Fetch canvas for each location — slot count derived from canvas
+    // When a specific location is selected, only fetch canvas for that one;
+    // otherwise fetch for all listed locations (the list endpoint doesn't support location_id filter)
+    const locationsForCanvas = locationId
+      ? (l.data.items || []).filter((loc) => loc.id === locationId)
+      : (l.data.items || []);
+
     const canvases = await Promise.all(
-      (l.data.items || []).map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
+      locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
     );
     const validCanvases = canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0);
     setCanvasData(validCanvases);
     // Compute total slots from canvas data (accurate, filter-aware)
     setTotalSlots(validCanvases.reduce((sum, c) => sum + c.cameras.reduce((s2, cam) => s2 + cam.slots.length, 0), 0));
-  }, [deviceQueryParams, queryParams, alertQueryParams]);
+  }, [deviceQueryParams, queryParams, alertQueryParams, locationId]);
   usePolling(fetchData, 5000);
 
   const online = devices.filter((d) => d.status === "ONLINE").length;

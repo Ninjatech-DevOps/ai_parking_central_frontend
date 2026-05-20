@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FormEvent } from "react";
+import { useState, useCallback, type FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/lib/toast";
 import { areasApi } from "@/services/api";

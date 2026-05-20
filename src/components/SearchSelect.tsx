@@ -31,7 +31,7 @@ export default function SearchSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger>
         <div
           role="button"
           tabIndex={0}
