@@ -123,7 +123,10 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
 
       ctx.font = "9px Inter, system-ui, sans-serif";
       ctx.fillStyle = color.text;
-      ctx.fillText(slot.state, cx, cy + 8);
+      const displayText = slot.state === "VEHICLE" && slot.detected_vehicle_type
+        ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "CAR")
+        : slot.state;
+      ctx.fillText(displayText, cx, cy + 8);
     }
   }, [camera, width, height, slotsWithPos, C]);
 
@@ -155,6 +158,8 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
     setHoveredSlot(found || null);
   }
 
+  const carCount = camera.slots.filter((s) => s.state === "VEHICLE" && s.detected_vehicle_type === "CAR").length;
+  const twoWheelerCount = camera.slots.filter((s) => s.state === "VEHICLE" && s.detected_vehicle_type === "TWO_WHEELER").length;
   const vehicleCount = camera.slots.filter((s) => s.state === "VEHICLE").length;
   const emptyCount = camera.slots.filter((s) => s.state === "EMPTY").length;
   const obstructedCount = camera.slots.filter((s) => s.state === "OBSTRUCTED").length;
@@ -185,18 +190,20 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
             className="absolute pointer-events-none bg-slate-900/90 text-white rounded-lg px-3 py-2 text-[11px] z-10"
             style={{ left: mousePos.x + 12, top: mousePos.y - 30 }}
           >
-            <p className="font-bold">{hoveredSlot.label}</p>
+            <p className="font-bold">{hoveredSlot.label} <span className="font-normal opacity-60">({hoveredSlot.slot_type === "TWO_WHEELER" ? "2W" : hoveredSlot.slot_type === "CAR" ? "Car" : "General"})</span></p>
             <p className={`${
               hoveredSlot.state === "VEHICLE" ? "text-red-300" :
               hoveredSlot.state === "EMPTY" ? "text-green-300" : "text-amber-300"
-            }`}>{hoveredSlot.state}</p>
+            }`}>{hoveredSlot.state}{hoveredSlot.state === "VEHICLE" && hoveredSlot.detected_vehicle_type ? ` (${hoveredSlot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car"})` : ""}</p>
           </div>
         )}
       </div>
 
       <div className="px-4 py-2.5 border-t border-slate-100 flex items-center gap-4 text-[11px]">
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Empty: {emptyCount}</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Vehicle: {vehicleCount}</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Car: {carCount}</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-400" /> 2W: {twoWheelerCount}</span>
+        {vehicleCount > carCount + twoWheelerCount && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Other: {vehicleCount - carCount - twoWheelerCount}</span>}
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500" /> Obstructed: {obstructedCount}</span>
       </div>
     </div>

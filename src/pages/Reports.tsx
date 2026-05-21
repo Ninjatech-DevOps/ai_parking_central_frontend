@@ -278,12 +278,14 @@ export default function Reports() {
       {!loading && data && s && (
         <div className="space-y-5">
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             <StatCard label="Total Sessions" value={s.total_sessions} icon={Car} color="teal" />
             <StatCard label="Currently Parked" value={s.active_sessions} icon={ParkingSquare} color="red" />
             <StatCard label="Avg Duration" value={formatDuration(s.avg_duration_minutes)} icon={Clock} color="violet" />
             <StatCard label="Peak Hour" value={s.peak_hour !== null ? formatHour(s.peak_hour) : "\u2014"} sub={s.peak_hour !== null ? `${s.peak_hour_count} entries` : undefined} icon={TrendingUp} color="amber" />
-            <StatCard label="Vehicles" value={s.vehicle_sessions} icon={Car} color="blue" />
+            <StatCard label="Cars" value={s.car_sessions ?? 0} icon={Car} color="blue" />
+            <StatCard label="2-Wheelers" value={s.two_wheeler_sessions ?? 0} icon={Car} color="indigo" />
+            <StatCard label="Vehicles" value={s.vehicle_sessions} icon={Car} color="slate" />
             <StatCard label="Obstructed" value={s.obstructed_sessions} icon={AlertTriangle} color="orange" />
           </div>
 
@@ -446,7 +448,7 @@ export default function Reports() {
               <table className="w-full print-table">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    {["#", "Slot", "Type", "Area", "Location", "Camera", "Entry", "Exit", "Duration", "Status"].map((h) => (
+                    {["#", "Slot", "Type", "Vehicle", "Area", "Location", "Camera", "Entry", "Exit", "Duration", "Status"].map((h) => (
                       <th key={h} className="text-left px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -521,6 +523,7 @@ function SessionRow({ sess, index }: { sess: any; index: number }) {
           {isObs ? "Obstructed" : "Vehicle"}
         </span>
       </td>
+      <td className="px-3 py-2 text-[10px] text-slate-500">{sess.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : sess.detected_vehicle_type === "CAR" ? "Car" : "\u2014"}</td>
       <td className="px-3 py-2 text-[10px] text-slate-500">{sess.area_name || "\u2014"}</td>
       <td className="px-3 py-2 text-[10px] text-slate-600">{sess.location_name || "\u2014"}</td>
       <td className="px-3 py-2 text-[10px] text-slate-500 font-mono">{sess.camera_label || "\u2014"}</td>

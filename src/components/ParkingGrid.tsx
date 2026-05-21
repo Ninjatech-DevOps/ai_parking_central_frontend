@@ -5,6 +5,8 @@ interface SlotItem {
   id: string;
   label: string;
   state: string;
+  slot_type?: string | null;
+  detected_vehicle_type?: string | null;
 }
 
 interface Props {
@@ -101,7 +103,7 @@ function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem)
       <TopDownCar state={slot.state} large={large} />
       {large && (
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.5px", color: s.dot, textTransform: "uppercase" }}>
-          {slot.state === "VEHICLE" ? "Occupied" : slot.state === "OBSTRUCTED" ? "Blocked" : "Available"}
+          {slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : "Available"}
         </span>
       )}
     </button>

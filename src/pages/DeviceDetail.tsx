@@ -44,6 +44,7 @@ export default function DeviceDetail() {
   const [drawMode, setDrawMode] = useState(false);
   const [shapeMode, setShapeMode] = useState<"rectangle" | "polygon">("rectangle");
   const [nextLabel, setNextLabel] = useState("A-01");
+  const [slotType, setSlotType] = useState("GENERAL");
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [deletingSlot, setDeletingSlot] = useState<ParkingSlot | null>(null);
@@ -201,6 +202,7 @@ export default function DeviceDetail() {
         zone_id: device.zone_id,
         camera_id: selectedCamera.id,
         polygon_coords: JSON.stringify(polygon),
+        slot_type: slotType,
       });
       showSuccess(`Slot ${createdLabel} created`);
       // Auto-increment: "B11" → "B12", "A-01" → "A-02", "Slot 5" → "Slot 6"
@@ -380,6 +382,14 @@ export default function DeviceDetail() {
                         <span className="text-[11px] text-slate-500 font-medium">Label:</span>
                         <Input value={nextLabel} onChange={(e) => setNextLabel(e.target.value)} className="w-20 h-7 text-[12px] rounded-lg" />
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 font-medium">Type:</span>
+                        <select value={slotType} onChange={(e) => setSlotType(e.target.value)} className="h-7 rounded-lg border border-slate-200 px-2 text-[11px] font-medium">
+                          <option value="GENERAL">General</option>
+                          <option value="CAR">Car</option>
+                          <option value="TWO_WHEELER">2-Wheeler</option>
+                        </select>
+                      </div>
                     </>
                   )}
                 </div>
@@ -445,8 +455,24 @@ export default function DeviceDetail() {
                 return (
                   <div key={s.id} className={`rounded-xl border ${sc.border} ${sc.bg} p-3`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[13px] font-bold text-slate-800">{s.label}</span>
-                      <span className={`text-[10px] font-bold ${sc.color}`}>{s.state}</span>
+                      <span className="text-[13px] font-bold text-slate-800">{s.label} {s.slot_type && s.slot_type !== "GENERAL" && <span className="text-[9px] font-medium text-slate-400">({s.slot_type === "TWO_WHEELER" ? "2W" : "Car"})</span>}</span>
+                      <span className={`text-[10px] font-bold ${sc.color}`}>{s.state === "VEHICLE" && s.detected_vehicle_type ? (s.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "CAR") : s.state}</span>
+                    </div>
+                    <div className="mb-2">
+                      <select
+                        value={s.slot_type || "GENERAL"}
+                        onChange={async (e) => {
+                          try {
+                            await slotsApi.update(s.id, { slot_type: e.target.value });
+                            if (selectedCamera) fetchSlotsForCamera(selectedCamera.id, false);
+                          } catch { showError("Failed to update slot type"); }
+                        }}
+                        className="w-full h-6 rounded-md border border-slate-200 bg-white/80 px-2 text-[10px] font-medium"
+                      >
+                        <option value="GENERAL">General</option>
+                        <option value="CAR">Car</option>
+                        <option value="TWO_WHEELER">2-Wheeler</option>
+                      </select>
                     </div>
                     <div className="flex gap-1.5">
                       <Button

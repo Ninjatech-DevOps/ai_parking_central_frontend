@@ -329,16 +329,16 @@ export default function ParkingHistory() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {["Slot", "Type", "Area", "Location", "Camera", "Entry Time", "Exit Time", "Duration", "Status"].map((h) => (
+                {["Slot", "Type", "Vehicle", "Area", "Location", "Camera", "Entry Time", "Exit Time", "Duration", "Status"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && sessions.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-16 text-[13px] text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={10} className="text-center py-16 text-[13px] text-slate-400">Loading...</td></tr>
               ) : sessions.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-16">
+                <tr><td colSpan={10} className="text-center py-16">
                   <Car size={28} className="text-slate-200 mx-auto mb-2" />
                   <p className="text-[13px] text-slate-400">No parking sessions found</p>
                   <p className="text-[11px] text-slate-300 mt-1">Adjust your filters or date range</p>
@@ -360,6 +360,12 @@ export default function ParkingHistory() {
                       s.event_type === "OBSTRUCTED" ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
                     }`}>
                       {s.event_type === "OBSTRUCTED" ? "Obstructed" : "Vehicle"}
+                    </span>
+                  </td>
+                  {/* Vehicle Type */}
+                  <td className="px-4 py-3">
+                    <span className="text-[12px] text-slate-600">
+                      {s.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : s.detected_vehicle_type === "CAR" ? "Car" : "\u2014"}
                     </span>
                   </td>
                   {/* Area */}

@@ -162,6 +162,8 @@ export interface ParkingSlot {
   zone_id: string;
   camera_id: string | null;
   state: "VEHICLE" | "EMPTY" | "OBSTRUCTED";
+  slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
+  detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
   polygon_coords: string | null;
   pos_x1: number | null;
   pos_y1: number | null;
@@ -193,6 +195,8 @@ export interface CanvasSlot {
   id: string;
   label: string;
   state: "VEHICLE" | "EMPTY" | "OBSTRUCTED";
+  slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
+  detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
   polygon_coords: string | null;
   pos_x1: number | null;
   pos_y1: number | null;
@@ -257,6 +261,7 @@ export interface ParkingSession {
   city_name: string | null;
   camera_id: string | null;
   event_type: string;
+  detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
   entry_time: string;
   exit_time: string | null;
   duration_minutes: number | null;

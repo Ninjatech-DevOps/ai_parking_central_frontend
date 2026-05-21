@@ -50,6 +50,7 @@ export default function ParkingLotDetail() {
   const [formLevel, setFormLevel] = useState("0");
   const [formParentId, setFormParentId] = useState("");
   const [formDeviceId, setFormDeviceId] = useState("");
+  const [formSlotType, setFormSlotType] = useState("GENERAL");
   const [formSaving, setFormSaving] = useState(false);
   const [deleting, setDeleting] = useState<{ id: string; name: string; type: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -148,8 +149,8 @@ export default function ParkingLotDetail() {
   async function handleSlotSubmit(e: FormEvent) {
     e.preventDefault(); setFormSaving(true);
     try {
-      if (editingId) await slotsApi.update(editingId, { label: formName });
-      else await slotsApi.create({ label: formName, zone_id: formParentId });
+      if (editingId) await slotsApi.update(editingId, { label: formName, slot_type: formSlotType });
+      else await slotsApi.create({ label: formName, zone_id: formParentId, slot_type: formSlotType });
       setShowSlotForm(false);
       if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
@@ -180,7 +181,7 @@ export default function ParkingLotDetail() {
   function openEditFloor(f: Floor) { setEditingId(f.id); setFormName(f.label); setFormLevel(f.level_number.toString()); setFormCapacity(f.capacity.toString()); setShowFloorForm(true); }
   function openAddZone(floorId: string) { setEditingId(null); setFormParentId(floorId); setFormName(""); setFormCapacity(""); setShowZoneForm(true); }
   function openEditZone(z: Zone) { setEditingId(z.id); setFormName(z.name); setFormCapacity(z.capacity.toString()); setShowZoneForm(true); }
-  function openAddSlot(zoneId: string) { setEditingId(null); setFormParentId(zoneId); setFormName(""); setShowSlotForm(true); }
+  function openAddSlot(zoneId: string) { setEditingId(null); setFormParentId(zoneId); setFormName(""); setFormSlotType("GENERAL"); setShowSlotForm(true); }
   function openAddCamera(deviceId: string) { setEditingId(null); setFormDeviceId(deviceId); setFormName(""); setShowCameraForm(true); }
 
   if (!location) return <div className="p-8 text-slate-400">Loading...</div>;
@@ -306,7 +307,8 @@ export default function ParkingLotDetail() {
                                             }`}>
                                               <ParkingSquare size={11} />
                                               {slot.label}
-                                              <span className="text-[9px] opacity-70">{slot.state}</span>
+                                              <span className="text-[9px] opacity-70">{slot.state === "VEHICLE" && slot.detected_vehicle_type ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car") : slot.state}</span>
+                                              <span className="text-[8px] opacity-50">{slot.slot_type === "TWO_WHEELER" ? "2W" : slot.slot_type === "CAR" ? "Car" : "Gen"}</span>
                                               {slot.camera_id && <Camera size={9} className="opacity-50" />}
                                               <button onClick={() => setDeleting({ id: slot.id, name: slot.label, type: "slot" })} className="hover:text-red-600 opacity-40 hover:opacity-100"><Trash2 size={10} /></button>
                                             </div>
@@ -503,6 +505,13 @@ export default function ParkingLotDetail() {
       <CrudDialog open={showSlotForm} onClose={() => setShowSlotForm(false)} title="Add Slot">
         <form onSubmit={handleSlotSubmit} className="space-y-4 mt-3">
           <div><Label className="text-[13px]">Slot Label</Label><Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="A-01, B-05..." className="mt-1.5 h-9 rounded-lg text-[13px]" required /></div>
+          <div><Label className="text-[13px]">Slot Type</Label>
+            <select value={formSlotType} onChange={(e) => setFormSlotType(e.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 px-3 text-[13px]">
+              <option value="GENERAL">General (Any Vehicle)</option>
+              <option value="CAR">Car</option>
+              <option value="TWO_WHEELER">Two Wheeler</option>
+            </select>
+          </div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
             <Button type="button" variant="ghost" onClick={() => setShowSlotForm(false)} className="rounded-lg text-[13px]">Cancel</Button>
             <Button type="submit" disabled={formSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">{formSaving ? "Saving..." : "Create"}</Button>
