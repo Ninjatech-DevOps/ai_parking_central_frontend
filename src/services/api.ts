@@ -3,6 +3,7 @@ import type {
   PaginatedResponse, TokenResponse, User, UserMe, State, City, Taluka, Village, Area,
   Location, Floor, Zone, ParkingSlot, Device, DeviceCommand, AlertEvent,
   Camera, CanvasResponse, ParkingSession, Role, PermissionItem,
+  SharedLink, PublicViewResponse,
 } from "@/types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -185,6 +186,19 @@ export const alertsApi = {
   get: (id: string) => api.get<AlertEvent>(`/alerts/${id}`),
   acknowledge: (id: string) => api.patch<AlertEvent>(`/alerts/${id}/acknowledge`),
   resolve: (id: string) => api.patch<AlertEvent>(`/alerts/${id}/resolve`),
+};
+
+// ─── Shared Links ───
+export const sharedLinksApi = {
+  list: (params?: string) => api.get<PaginatedResponse<SharedLink>>(`/shared-links?${params || ""}`),
+  get: (id: string) => api.get<SharedLink>(`/shared-links/${id}`),
+  create: (d: Record<string, unknown>) => api.post<SharedLink>("/shared-links", d),
+  update: (id: string, d: Record<string, unknown>) => api.patch<SharedLink>(`/shared-links/${id}`, d),
+  delete: (id: string) => api.delete(`/shared-links/${id}`),
+};
+
+export const publicViewApi = {
+  get: (token: string) => api.get<PublicViewResponse>(`/public/view/${token}`),
 };
 
 // ─── Notification Preferences ───

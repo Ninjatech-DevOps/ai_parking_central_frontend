@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Monitor, Bell, Users, Settings, ParkingSquare,
-  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck,
+  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2,
 } from "lucide-react";
 
 interface NavItemConfig {
@@ -56,6 +56,7 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/users", label: "Users", icon: Users, permissions: ["users:view"] },
       { to: "/roles", label: "Roles", icon: ShieldCheck, permissions: ["roles:view", "roles:manage"] },
+      { to: "/shared-links", label: "Shared Links", icon: Link2 },
     ],
   },
 ];

@@ -17,6 +17,8 @@ import Roles from "@/pages/Roles";
 import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
 import ParkingHistory from "@/pages/ParkingHistory";
+import SharedLinks from "@/pages/SharedLinks";
+import PublicView from "@/pages/PublicView";
 import { Toaster } from "sonner";
 import "./index.css";
 
@@ -27,6 +29,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/view/:token" element={<PublicView />} />
       <Route element={<DashboardLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/location-management" element={<LocationManagement />} />
@@ -39,6 +42,7 @@ function AppRoutes() {
         <Route path="/users" element={<Users />} />
         <Route path="/roles" element={<Roles />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/shared-links" element={<SharedLinks />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>

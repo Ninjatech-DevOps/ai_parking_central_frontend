@@ -268,6 +268,36 @@ export interface ParkingSession {
   is_active: boolean;
 }
 
+// ─── Shared Links ───
+export interface SharedLink {
+  id: string;
+  token: string;
+  name: string | null;
+  scope_type: "CITY" | "TALUKA" | "VILLAGE" | "AREA" | "LOCATION" | "CAMERA";
+  scope_id: string | null;
+  camera_ids: string | null;
+  created_by_user_id: string;
+  expires_at: string | null;
+  is_active: boolean;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicLocationData {
+  id: string;
+  name: string;
+  cameras: CanvasCamera[];
+  summary: { total: number; available: number; occupied: number; obstructed: number };
+}
+
+export interface PublicViewResponse {
+  name: string | null;
+  scope_type: string;
+  locations: PublicLocationData[];
+  total_summary: { total: number; available: number; occupied: number; obstructed: number };
+}
+
 // ─── Alerts ───
 export interface AlertEvent {
   id: string;
