@@ -5,9 +5,9 @@ import SearchSelect from "@/components/SearchSelect";
 import Pagination from "@/components/Pagination";
 import {
   BarChart3, Car, Clock, Download, FileDown, ParkingSquare, Timer,
-  AlertTriangle, Monitor, TrendingUp, Activity, Loader2,
+  AlertTriangle, Monitor, TrendingUp, Activity, Loader2, Flame, MapPin,
 } from "lucide-react";
-import type { Area, Location } from "@/types/api";
+import type { Area, Location, OccupancyAnalysisResponse, ZoneOccupancyAnalysis } from "@/types/api";
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) return "\u2014";
@@ -67,6 +67,11 @@ export default function Reports() {
   const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 15;
+  const [activeTab, setActiveTab] = useState<"summary" | "occupancy">("summary");
+  const [occLoading, setOccLoading] = useState(false);
+  const [occData, setOccData] = useState<OccupancyAnalysisResponse | null>(null);
+  const [occSlotType, setOccSlotType] = useState("");
+  const [occThreshold, setOccThreshold] = useState(80);
 
   useEffect(() => {
     areasApi.list("page_size=500").then(({ data }) => setAreas(data.items || [])).catch(() => {});
@@ -113,6 +118,53 @@ export default function Reports() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `parking_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+    finally { setDownloading(false); }
+  }
+
+  async function analyzeOccupancy() {
+    if (!startDate || !endDate) return;
+    setOccLoading(true);
+    setOccData(null);
+    try {
+      const params = new URLSearchParams();
+      if (selectedArea) params.set("area_id", selectedArea);
+      if (selectedLocation) params.set("location_id", selectedLocation);
+      params.set("start_date", new Date(startDate).toISOString());
+      params.set("end_date", new Date(endDate).toISOString());
+      params.set("threshold", String(occThreshold));
+      if (occSlotType) params.set("slot_type", occSlotType);
+      const { data: result } = await reportsApi.occupancyAnalysis(params.toString());
+      setOccData(result);
+    } catch {
+      setOccData(null);
+    } finally {
+      setOccLoading(false);
+    }
+  }
+
+  async function handleOccupancyCsv() {
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedArea) params.set("area_id", selectedArea);
+      if (selectedLocation) params.set("location_id", selectedLocation);
+      if (startDate) params.set("start_date", new Date(startDate).toISOString());
+      if (endDate) params.set("end_date", new Date(endDate).toISOString());
+      params.set("threshold", String(occThreshold));
+      if (occSlotType) params.set("slot_type", occSlotType);
+      const token = localStorage.getItem("access_token");
+      const resp = await fetch(reportsApi.occupancyExportCsvUrl(params.toString()), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error();
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `occupancy_analysis_${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch { /* ignore */ }
@@ -181,27 +233,57 @@ export default function Reports() {
           <h1 className="text-[20px] font-bold text-slate-900">Reports</h1>
           <p className="text-[12px] text-slate-400 mt-0.5">Generate comprehensive parking analytics</p>
         </div>
-        {data && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {activeTab === "summary" && data && (
+            <>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 h-9 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[12px] font-semibold transition-colors"
+              >
+                <FileDown size={14} />
+                Download PDF
+              </button>
+              <button
+                onClick={handleDownloadCsv}
+                disabled={downloading}
+                className="flex items-center gap-2 h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[12px] font-semibold shadow-md shadow-teal-600/20 transition-colors disabled:opacity-50"
+              >
+                <Download size={14} />
+                {downloading ? "Exporting..." : "Export CSV"}
+              </button>
+            </>
+          )}
+          {activeTab === "occupancy" && occData && (
             <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[12px] font-semibold transition-colors"
-            >
-              <FileDown size={14} />
-              Download PDF
-            </button>
-            <button
-              onClick={handleDownloadCsv}
+              onClick={handleOccupancyCsv}
               disabled={downloading}
               className="flex items-center gap-2 h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[12px] font-semibold shadow-md shadow-teal-600/20 transition-colors disabled:opacity-50"
             >
               <Download size={14} />
               {downloading ? "Exporting..." : "Export CSV"}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 no-print bg-slate-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("summary")}
+          className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors ${activeTab === "summary" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        >
+          Summary
+        </button>
+        <button
+          onClick={() => setActiveTab("occupancy")}
+          className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors ${activeTab === "occupancy" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        >
+          Peak Occupancy
+        </button>
+      </div>
+
+      {/* ═══ SUMMARY TAB ═══ */}
+      {activeTab === "summary" && <>
       {/* Filters */}
       <div className="bg-white rounded-2xl card-shadow p-5 mb-6 no-print">
         <div className="flex flex-wrap items-end gap-4">
@@ -482,6 +564,32 @@ export default function Reports() {
           </div>
         </div>
       )}
+      </>}
+
+      {/* ═══ PEAK OCCUPANCY TAB ═══ */}
+      {activeTab === "occupancy" && (
+        <OccupancyTab
+          areas={areas}
+          locations={filteredLocations}
+          selectedArea={selectedArea}
+          setSelectedArea={(v) => { setSelectedArea(v); setSelectedLocation(""); }}
+          selectedLocation={selectedLocation}
+          setSelectedLocation={setSelectedLocation}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          slotType={occSlotType}
+          setSlotType={setOccSlotType}
+          threshold={occThreshold}
+          setThreshold={setOccThreshold}
+          loading={occLoading}
+          data={occData}
+          onAnalyze={analyzeOccupancy}
+          onExportCsv={handleOccupancyCsv}
+          downloading={downloading}
+        />
+      )}
     </div>
   );
 }
@@ -542,6 +650,235 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
     <div className="bg-white rounded-xl card-shadow px-4 py-3 flex items-center justify-between">
       <span className="text-[11px] text-slate-500">{label}</span>
       <span className="text-[14px] font-bold text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function occupancyColor(pct: number, threshold: number): string {
+  if (pct >= 95) return "bg-red-500 text-white";
+  if (pct >= threshold) return "bg-teal-600 text-white";
+  if (pct >= threshold * 0.75) return "bg-teal-400 text-white";
+  if (pct >= 30) return "bg-teal-200 text-slate-700";
+  if (pct > 0) return "bg-teal-50 text-slate-600";
+  return "bg-slate-50 text-slate-300";
+}
+
+function OccupancyTab({
+  areas, locations, selectedArea, setSelectedArea, selectedLocation, setSelectedLocation,
+  startDate, setStartDate, endDate, setEndDate, slotType, setSlotType,
+  threshold, setThreshold, loading, data, onAnalyze,
+}: {
+  areas: Area[]; locations: Location[];
+  selectedArea: string; setSelectedArea: (v: string) => void;
+  selectedLocation: string; setSelectedLocation: (v: string) => void;
+  startDate: string; setStartDate: (v: string) => void;
+  endDate: string; setEndDate: (v: string) => void;
+  slotType: string; setSlotType: (v: string) => void;
+  threshold: number; setThreshold: (v: number) => void;
+  loading: boolean; data: OccupancyAnalysisResponse | null;
+  onAnalyze: () => void; onExportCsv: () => void; downloading: boolean;
+}) {
+  return (
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="bg-white rounded-2xl card-shadow p-5">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[140px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Area</label>
+            <SearchSelect
+              options={[{ value: "", label: "All Areas" }, ...areas.map((a) => ({ value: a.id, label: a.name }))]}
+              value={selectedArea}
+              onValueChange={setSelectedArea}
+              placeholder="All Areas"
+              className="w-full"
+            />
+          </div>
+          <div className="flex-1 min-w-[140px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Location</label>
+            <SearchSelect
+              options={[{ value: "", label: "All Locations" }, ...locations.map((l: Location) => ({ value: l.id, label: l.name }))]}
+              value={selectedLocation}
+              onValueChange={setSelectedLocation}
+              placeholder="All Locations"
+              className="w-full"
+            />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">From</label>
+            <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400" />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">To</label>
+            <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400" />
+          </div>
+          <div className="min-w-[120px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Slot Type</label>
+            <select value={slotType} onChange={(e) => setSlotType(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 bg-white">
+              <option value="">All Types</option>
+              <option value="CAR">Car</option>
+              <option value="TWO_WHEELER">Two Wheeler</option>
+              <option value="GENERAL">General</option>
+            </select>
+          </div>
+          <div className="min-w-[80px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Threshold %</label>
+            <input type="number" min={1} max={100} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}
+              className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400" />
+          </div>
+          <button onClick={onAnalyze} disabled={loading || !startDate || !endDate}
+            className="h-9 px-5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[12px] font-semibold transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Flame size={14} />}
+            {loading ? "Analyzing..." : "Analyze"}
+          </button>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="bg-white rounded-2xl card-shadow flex flex-col items-center justify-center py-20">
+          <div className="w-10 h-10 border-3 border-teal-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-[14px] font-semibold text-slate-600">Analyzing occupancy patterns...</p>
+          <p className="text-[12px] text-slate-400 mt-1">Reconstructing state timelines</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !data && (
+        <div className="bg-white rounded-2xl card-shadow flex flex-col items-center justify-center py-20">
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+            <Flame size={24} className="text-slate-300" />
+          </div>
+          <p className="text-[14px] font-semibold text-slate-500">Select a date range and analyze</p>
+          <p className="text-[12px] text-slate-400 mt-1">Find which zones are busiest and when</p>
+        </div>
+      )}
+
+      {/* Results */}
+      {!loading && data && (
+        <div className="space-y-5">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Avg Occupancy" value={`${data.global_avg_occupancy_pct}%`} icon={ParkingSquare} color="teal" />
+            <StatCard label="Hotspot Zones" value={data.hotspot_zones.length} icon={Flame} color="red" sub={`above ${data.threshold}%`} />
+            <StatCard label="Peak Hour" value={data.global_peak_hour !== null ? formatHour(data.global_peak_hour) : "\u2014"} icon={TrendingUp} color="amber" />
+            <StatCard label="Mismatch Rate" value={`${data.global_avg_mismatch_pct}%`} icon={AlertTriangle} color="orange" />
+          </div>
+
+          {/* Heatmap */}
+          {data.zones.length > 0 ? (
+            <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
+                <MapPin size={14} className="text-teal-600" />
+                <h3 className="text-[13px] font-bold text-slate-800">Occupancy Heatmap</h3>
+                <span className="text-[10px] text-slate-400 ml-auto">{data.zones.length} zones analyzed</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="text-left px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky left-0 bg-slate-50 min-w-[180px]">Zone</th>
+                      <th className="px-1 py-2 text-[10px] font-bold text-slate-400 text-center min-w-[30px]">Avg</th>
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <th key={h} className="px-0 py-2 text-[9px] font-bold text-slate-400 text-center min-w-[32px]">{formatHour(h)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.zones.map((zone) => (
+                      <tr key={zone.zone_id} className="border-b border-slate-50 hover:bg-slate-50/30">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white">
+                          <div className="text-[11px] font-semibold text-slate-800">{zone.zone_name}</div>
+                          <div className="text-[9px] text-slate-400">{zone.location_name}{zone.floor_label ? ` \u00b7 ${zone.floor_label}` : ""} \u00b7 {zone.total_slots} slots</div>
+                        </td>
+                        <td className="px-1 py-1.5 text-center">
+                          <span className={`inline-block text-[10px] font-bold rounded px-1.5 py-0.5 ${occupancyColor(zone.avg_occupancy_pct, data.threshold)}`}>
+                            {zone.avg_occupancy_pct}%
+                          </span>
+                        </td>
+                        {zone.hourly_breakdown.map((hb) => (
+                          <td key={hb.hour} className="px-0 py-1.5 text-center group relative">
+                            <span className={`inline-block w-[28px] text-[9px] font-semibold rounded py-0.5 ${occupancyColor(hb.occupancy_pct, data.threshold)}`}>
+                              {hb.occupancy_pct > 0 ? Math.round(hb.occupancy_pct) : "\u00b7"}
+                            </span>
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-20 shadow-lg">
+                              <div className="font-semibold">{zone.zone_name}, {formatHour(hb.hour)}</div>
+                              <div>{hb.occupancy_pct}% occupied ({hb.occupied_slots}/{hb.total_slots} slots)</div>
+                              {hb.mismatch_pct > 0 && <div className="text-amber-300">{hb.mismatch_pct}% mismatched</div>}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Color legend */}
+              <div className="flex items-center gap-3 px-5 py-2 border-t border-slate-100">
+                <span className="text-[9px] text-slate-400 font-semibold">Legend:</span>
+                {[
+                  { label: "0%", cls: "bg-slate-50" },
+                  { label: "<30%", cls: "bg-teal-50" },
+                  { label: `${Math.round(threshold * 0.75)}%`, cls: "bg-teal-200" },
+                  { label: `${threshold}%`, cls: "bg-teal-400" },
+                  { label: `>${threshold}%`, cls: "bg-teal-600" },
+                  { label: ">95%", cls: "bg-red-500" },
+                ].map(({ label, cls }) => (
+                  <div key={label} className="flex items-center gap-1">
+                    <div className={`w-3 h-3 rounded ${cls}`} />
+                    <span className="text-[9px] text-slate-400">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl card-shadow flex flex-col items-center justify-center py-12">
+              <p className="text-[13px] text-slate-400">No zones found for the selected filters</p>
+            </div>
+          )}
+
+          {/* Insights */}
+          {data.zones.some((z) => z.peak_periods.length > 0) && (
+            <div className="bg-white rounded-2xl card-shadow p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp size={14} className="text-teal-600" />
+                <h3 className="text-[13px] font-bold text-slate-800">Peak Occupancy Insights</h3>
+              </div>
+              <div className="space-y-2">
+                {data.zones
+                  .filter((z) => z.peak_periods.length > 0)
+                  .map((zone) => (
+                    <div key={zone.zone_id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                      <div className={`w-1 h-full min-h-[32px] rounded-full shrink-0 ${
+                        zone.avg_occupancy_pct >= 95 ? "bg-red-500" :
+                        zone.avg_occupancy_pct >= threshold ? "bg-amber-400" : "bg-teal-400"
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-[12px] font-semibold text-slate-800">{zone.insight}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {zone.peak_periods.map((p, i) => (
+                            <span key={i} className="text-[10px] font-medium text-teal-700 bg-teal-50 rounded px-2 py-0.5">
+                              {p.label}: {p.avg_occupancy_pct}%
+                              {p.avg_mismatch_pct > 5 && <span className="text-amber-600 ml-1">({p.avg_mismatch_pct}% mismatch)</span>}
+                            </span>
+                          ))}
+                          {Object.entries(zone.slots_by_type).length > 1 && (
+                            <span className="text-[10px] text-slate-400">
+                              Slots: {Object.entries(zone.slots_by_type).map(([t, c]) => `${c} ${t}`).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

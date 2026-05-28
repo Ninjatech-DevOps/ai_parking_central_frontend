@@ -178,6 +178,8 @@ export const slotEventsApi = {
 export const reportsApi = {
   summary: (params?: string) => api.get<any>(`/reports/summary?${params || ""}`),
   exportCsvUrl: (params?: string) => `${API_BASE}/reports/export-csv?${params || ""}`,
+  occupancyAnalysis: (params?: string) => api.get<any>(`/reports/occupancy-analysis?${params || ""}`),
+  occupancyExportCsvUrl: (params?: string) => `${API_BASE}/reports/occupancy-analysis/export-csv?${params || ""}`,
 };
 
 // ─── Alerts ───

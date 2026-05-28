@@ -59,6 +59,69 @@ function TopDownCar({ state, large }: { state: string; large?: boolean }) {
   );
 }
 
+function TopDownBike({ state, large }: { state: string; large?: boolean }) {
+  const s = getStyle(state);
+  const fill = s.carBody === "none" ? "transparent" : s.carBody;
+  const dash = s.dashed ? "3 2.5" : undefined;
+  const headlightOpacity = s.carBody === "none" ? 0 : 1;
+
+  return (
+    <svg viewBox="0 0 44 88" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: large ? "40%" : "75%", maxWidth: large ? 56 : 32, height: "auto", display: "block", flex: "0 1 auto" }} aria-hidden="true">
+      {/* Front wheel — pill shape, clearly a tire from above */}
+      <rect x="14" y="1" width="16" height="18" rx="8" fill={fill} stroke={s.carStroke} strokeWidth="1.6" strokeDasharray={dash} />
+      {/* Headlight */}
+      <rect x="17" y="2.5" width="10" height="2.5" rx="1.2" fill="rgba(255,255,255,0.65)" opacity={headlightOpacity} />
+      {/* Handlebar grips — stick out wide, THE key bike identifier */}
+      <rect x="1" y="14" width="11" height="5" rx="2.5" fill={fill} stroke={s.carStroke} strokeWidth="1.2" strokeDasharray={dash} />
+      <rect x="32" y="14" width="11" height="5" rx="2.5" fill={fill} stroke={s.carStroke} strokeWidth="1.2" strokeDasharray={dash} />
+      {/* Handlebar crossbar */}
+      <rect x="11" y="15.5" width="22" height="2" rx="1" fill={fill} stroke={s.carStroke} strokeWidth="0.8" strokeDasharray={dash} />
+      {/* Body frame — narrow, connects everything */}
+      <rect x="15" y="19" width="14" height="46" rx="7" fill={fill} stroke={s.carStroke} strokeWidth="1.4" strokeDasharray={dash} />
+      {/* Seat — wider oval overlay on body */}
+      <rect x="11" y="36" width="22" height="16" rx="8" fill={fill} stroke={s.carStroke} strokeWidth="1.4" strokeDasharray={dash} />
+      {/* Rear wheel */}
+      <rect x="14" y="67" width="16" height="18" rx="8" fill={fill} stroke={s.carStroke} strokeWidth="1.6" strokeDasharray={dash} />
+      {/* Taillight */}
+      <rect x="17" y="83" width="10" height="2.5" rx="1.2" fill={fill === "transparent" ? "none" : s.carStroke} opacity={headlightOpacity} />
+    </svg>
+  );
+}
+
+function ParkingP({ state, large }: { state: string; large?: boolean }) {
+  const s = getStyle(state);
+  const fill = s.carBody === "none" ? "transparent" : s.carBody;
+  const dash = s.dashed ? "3 2.5" : undefined;
+
+  return (
+    <svg viewBox="0 0 50 88" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: large ? "55%" : "100%", maxWidth: large ? 80 : 44, height: "auto", display: "block", flex: "0 1 auto" }} aria-hidden="true">
+      <rect x="6" y="4" width="38" height="80" rx="9" fill={fill} stroke={s.carStroke} strokeWidth="1.6" strokeDasharray={dash} />
+      <text x="25" y="56" textAnchor="middle" fontSize="42" fontWeight="800" fontFamily="Inter, system-ui, sans-serif" fill={s.carStroke} opacity="0.85">P</text>
+    </svg>
+  );
+}
+
+function SlotIcon({ slot, large }: { slot: SlotItem; large?: boolean }) {
+  const isGeneral = !slot.slot_type || slot.slot_type === "GENERAL";
+  const isOccupied = slot.state === "VEHICLE" || slot.state === "OBSTRUCTED";
+
+  if (isGeneral) {
+    if (isOccupied && slot.detected_vehicle_type === "TWO_WHEELER") {
+      return <TopDownBike state={slot.state} large={large} />;
+    }
+    if (isOccupied && slot.detected_vehicle_type) {
+      return <TopDownCar state={slot.state} large={large} />;
+    }
+    return <ParkingP state={slot.state} large={large} />;
+  }
+
+  return slot.slot_type === "TWO_WHEELER"
+    ? <TopDownBike state={slot.state} large={large} />
+    : <TopDownCar state={slot.state} large={large} />;
+}
+
 function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem) => void; large?: boolean }) {
   const s = getStyle(slot.state);
 
@@ -100,10 +163,10 @@ function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem)
       }}>
         {slot.label}
       </span>
-      <TopDownCar state={slot.state} large={large} />
+      <SlotIcon slot={slot} large={large} />
       {large && (
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.5px", color: s.dot, textTransform: "uppercase" }}>
-          {slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : "Available"}
+          {slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : (slot.slot_type === "TWO_WHEELER" ? "2W Available" : slot.slot_type === "CAR" ? "Car Available" : "Available")}
         </span>
       )}
     </button>

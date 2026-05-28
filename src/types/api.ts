@@ -262,6 +262,7 @@ export interface ParkingSession {
   camera_id: string | null;
   event_type: string;
   detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
+  image_url: string | null;
   entry_time: string;
   exit_time: string | null;
   duration_minutes: number | null;
@@ -311,4 +312,48 @@ export interface AlertEvent {
   acknowledged_at: string | null;
   acknowledged_by: string | null;
   resolved_at: string | null;
+}
+
+// ─── Occupancy Analysis ───
+export interface HourlyOccupancy {
+  hour: number;
+  occupancy_pct: number;
+  occupied_slots: number;
+  total_slots: number;
+  mismatch_pct: number;
+}
+
+export interface PeakPeriod {
+  start_hour: number;
+  end_hour: number;
+  avg_occupancy_pct: number;
+  avg_mismatch_pct: number;
+  label: string;
+}
+
+export interface ZoneOccupancyAnalysis {
+  zone_id: string;
+  zone_name: string;
+  floor_label: string;
+  location_name: string;
+  area_name: string | null;
+  total_slots: number;
+  slots_by_type: Record<string, number>;
+  avg_occupancy_pct: number;
+  avg_mismatch_pct: number;
+  hourly_breakdown: HourlyOccupancy[];
+  peak_periods: PeakPeriod[];
+  insight: string;
+}
+
+export interface OccupancyAnalysisResponse {
+  threshold: number;
+  slot_type_filter: string | null;
+  start_date: string;
+  end_date: string;
+  zones: ZoneOccupancyAnalysis[];
+  global_peak_hour: number | null;
+  global_avg_occupancy_pct: number;
+  global_avg_mismatch_pct: number;
+  hotspot_zones: string[];
 }

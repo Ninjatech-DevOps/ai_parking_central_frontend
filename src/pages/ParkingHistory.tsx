@@ -4,7 +4,7 @@ import { useFilter } from "@/contexts/FilterContext";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import SearchSelect from "@/components/SearchSelect";
-import { ParkingSquare, Car, Timer, SlidersHorizontal, RotateCcw, ChevronDown } from "lucide-react";
+import { ParkingSquare, Car, Timer, SlidersHorizontal, RotateCcw, ChevronDown, Image as ImageIcon, X } from "lucide-react";
 import type { ParkingSession, Location, Area } from "@/types/api";
 
 function formatDuration(minutes: number | null): string {
@@ -137,6 +137,8 @@ export default function ParkingHistory() {
   usePolling(fetchSessions, 15000);
 
   const activeSessions = sessions.filter((s) => s.is_active).length;
+
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const activeFilterCount = [selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, minDuration || maxDuration, startDate, endDate].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
@@ -329,16 +331,16 @@ export default function ParkingHistory() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {["Slot", "Type", "Vehicle", "Area", "Location", "Camera", "Entry Time", "Exit Time", "Duration", "Status"].map((h) => (
+                {["Slot", "Image", "Type", "Vehicle", "Area", "Location", "Camera", "Entry Time", "Exit Time", "Duration", "Status"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && sessions.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-16 text-[13px] text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={11} className="text-center py-16 text-[13px] text-slate-400">Loading...</td></tr>
               ) : sessions.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-16">
+                <tr><td colSpan={11} className="text-center py-16">
                   <Car size={28} className="text-slate-200 mx-auto mb-2" />
                   <p className="text-[13px] text-slate-400">No parking sessions found</p>
                   <p className="text-[11px] text-slate-300 mt-1">Adjust your filters or date range</p>
@@ -353,6 +355,24 @@ export default function ParkingHistory() {
                       </div>
                       <span className="text-[13px] font-bold text-slate-800 font-mono">{s.slot_label}</span>
                     </div>
+                  </td>
+                  {/* Image */}
+                  <td className="px-4 py-3">
+                    {s.image_url ? (
+                      <button
+                        onClick={() => setPreviewImage(s.image_url)}
+                        className="group relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"
+                      >
+                        <img src={s.image_url} alt={s.slot_label} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <ImageIcon size={12} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                        <ImageIcon size={12} className="text-slate-300" />
+                      </div>
+                    )}
                   </td>
                   {/* Type */}
                   <td className="px-4 py-3">
@@ -436,6 +456,28 @@ export default function ParkingHistory() {
           </div>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full card-shadow flex items-center justify-center hover:bg-slate-50 transition-colors z-10"
+            >
+              <X size={14} className="text-slate-600" />
+            </button>
+            <img
+              src={previewImage}
+              alt="Slot detection"
+              className="w-full rounded-2xl card-shadow"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilter } from "@/contexts/FilterContext";
-import { devicesApi, alertsApi, locationsApi, camerasApi } from "@/services/api";
+import { devicesApi, alertsApi, locationsApi, slotEventsApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CameraCanvas from "@/components/CameraCanvas";
 import ParkingGrid from "@/components/ParkingGrid";
@@ -144,49 +144,24 @@ export default function Dashboard() {
 function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }) {
   const [viewMode, setViewMode] = useState<"grid" | "canvas">("grid");
   const [selectedSlot, setSelectedSlot] = useState<{ cam: CanvasCamera; slotId: string; locName: string } | null>(null);
-  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
-  // "idle" = done, "loading" = fetching cached image, "refreshing" = capturing fresh from device
-  const [snapshotStatus, setSnapshotStatus] = useState<"idle" | "loading" | "refreshing">("idle");
-
-  const activeSlotCamRef = useRef<string | null>(null);
+  const [slotImageUrl, setSlotImageUrl] = useState<string | null>(null);
+  const [slotImageLoading, setSlotImageLoading] = useState(false);
 
   async function handleSlotClick(slotId: string, cam: CanvasCamera, locName: string) {
-    if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
     setSelectedSlot({ cam, slotId, locName });
-    setSnapshotUrl(null);
-    setSnapshotStatus("loading");
-    activeSlotCamRef.current = cam.id;
+    setSlotImageUrl(null);
+    setSlotImageLoading(true);
 
-    // 1. Show existing snapshot immediately (may be old, better than nothing)
     try {
-      const url = await camerasApi.snapshotBlobUrl(cam.id);
-      if (activeSlotCamRef.current !== cam.id) return;
-      setSnapshotUrl(url);
-    } catch { /* no snapshot yet */ }
-
-    // 2. Trigger fresh capture in background, refresh after delay
-    if (activeSlotCamRef.current !== cam.id) return;
-    setSnapshotStatus("refreshing");
-    camerasApi.captureSnapshot(cam.id).catch(() => {});
-    for (const delay of [5000, 4000]) {
-      await new Promise((r) => setTimeout(r, delay));
-      if (activeSlotCamRef.current !== cam.id) return;
-      try {
-        const url = await camerasApi.snapshotBlobUrl(cam.id);
-        if (activeSlotCamRef.current !== cam.id) return;
-        setSnapshotUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return url;
-        });
-      } catch { /* ignore */ }
-    }
-    if (activeSlotCamRef.current === cam.id) setSnapshotStatus("idle");
+      const { data } = await slotEventsApi.bySlot(slotId, "limit=1");
+      const events = Array.isArray(data) ? data : [];
+      const latest = events.find((e: { image_url?: string | null }) => e.image_url);
+      if (latest?.image_url) {
+        setSlotImageUrl(latest.image_url);
+      }
+    } catch { /* no events */ }
+    setSlotImageLoading(false);
   }
-
-  // Build a highlighted camera for the canvas view (only the clicked slot highlighted)
-  const highlightedCam = selectedSlot ? {
-    ...selectedSlot.cam,
-  } : null;
 
   return (
     <div className="mb-8">
@@ -222,7 +197,7 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{loc.location_name}</p>
               {viewMode === "grid" ? (
                 <ParkingGrid
-                  slots={cam.slots.map((s) => ({ id: s.id, label: s.label, state: s.state }))}
+                  slots={cam.slots.map((s) => ({ id: s.id, label: s.label, state: s.state, slot_type: s.slot_type, detected_vehicle_type: s.detected_vehicle_type }))}
                   cameraLabel={cam.position_label}
                   onSlotClick={(slot) => handleSlotClick(slot.id, cam, loc.location_name)}
                 />
@@ -234,153 +209,64 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
         )}
       </div>
 
-      {/* Slot detail dialog with canvas + snapshot */}
+      {/* Slot detail dialog — cropped slot image */}
       <CrudDialog
         open={!!selectedSlot}
-        onClose={() => { activeSlotCamRef.current = null; setSelectedSlot(null); if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); setSnapshotUrl(null); } setSnapshotStatus("idle"); }}
+        onClose={() => { setSelectedSlot(null); setSlotImageUrl(null); }}
         title={`${selectedSlot?.locName} — ${selectedSlot?.cam.position_label}`}
-        maxWidth="min(1024px, 95vw)"
+        maxWidth="min(480px, 95vw)"
       >
-        {selectedSlot && highlightedCam && (
-          <div className="mt-3">
-            <div className="relative">
-              <SlotDetailCanvas cam={highlightedCam} snapshotUrl={snapshotUrl} highlightSlotId={selectedSlot.slotId} />
-              {snapshotStatus !== "idle" && (
-                <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 bg-black/70 backdrop-blur-sm rounded-xl px-4 py-3">
-                  <div className="w-5 h-5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                  <div>
-                    <span className="text-[13px] font-semibold text-white block">
-                      {snapshotStatus === "loading" ? "Fetching image from device…" : "Capturing fresh image from device…"}
-                    </span>
-                    <span className="text-[11px] text-slate-300">
-                      {snapshotStatus === "loading" ? "Loading last captured snapshot" : "New snapshot will replace shortly"}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Slot info */}
-            {(() => {
-              const slot = highlightedCam.slots.find((s) => s.id === selectedSlot.slotId);
-              if (!slot) return null;
-              const sc = slot.state === "VEHICLE" ? "text-red-500" : slot.state === "OBSTRUCTED" ? "text-amber-500" : "text-emerald-500";
-              return (
-                <div className="mt-3 flex items-center justify-between px-1">
+        {selectedSlot && (() => {
+          const slot = selectedSlot.cam.slots.find((s) => s.id === selectedSlot.slotId);
+          if (!slot) return null;
+          const sc = slot.state === "VEHICLE" ? "text-red-500" : slot.state === "OBSTRUCTED" ? "text-amber-500" : "text-emerald-500";
+          const bg = slot.state === "VEHICLE" ? "bg-red-50" : slot.state === "OBSTRUCTED" ? "bg-amber-50" : "bg-emerald-50";
+          return (
+            <div className="mt-3">
+              {/* Slot info */}
+              <div className="flex items-center justify-between px-1 mb-3">
+                <div className="flex items-center gap-2">
                   <span className="text-[14px] font-bold text-slate-800">{slot.label}</span>
-                  <span className={`text-[12px] font-bold ${sc}`}>{slot.state}</span>
+                  {slot.slot_type && slot.slot_type !== "GENERAL" && (
+                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">
+                      {slot.slot_type === "TWO_WHEELER" ? "2-Wheeler" : "Car"}
+                    </span>
+                  )}
                 </div>
-              );
-            })()}
-          </div>
-        )}
+                <div className="flex items-center gap-2">
+                  {slot.state === "VEHICLE" && slot.detected_vehicle_type && (
+                    <span className="text-[10px] font-semibold text-blue-500 bg-blue-50 rounded px-1.5 py-0.5">
+                      {slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : "Car"}
+                    </span>
+                  )}
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${bg} ${sc}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${slot.state === "VEHICLE" ? "bg-red-500" : slot.state === "OBSTRUCTED" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    {slot.state}
+                  </span>
+                </div>
+              </div>
+              {/* Cropped slot image */}
+              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                {slotImageLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : slotImageUrl ? (
+                  <img src={slotImageUrl} alt={slot.label} className="w-full object-contain" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <ParkingSquare size={28} className="text-slate-200 mb-2" />
+                    <p className="text-[13px]">No image available</p>
+                    <p className="text-[11px] text-slate-300 mt-0.5">Image will appear after next detection</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </CrudDialog>
     </div>
   );
 }
 
 
-function SlotDetailCanvas({ cam, snapshotUrl, highlightSlotId }: { cam: CanvasCamera; snapshotUrl: string | null; highlightSlotId: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-
-  const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const containerWidth = container.clientWidth;
-    const frameW = cam.frame_width || 1920;
-    const frameH = cam.frame_height || 1080;
-    const aspect = frameH / frameW;
-    const w = containerWidth;
-    const h = Math.round(containerWidth * aspect);
-    const scale = w / frameW;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-
-    const ctx = canvas.getContext("2d")!;
-    ctx.scale(dpr, dpr);
-
-    // Black background first, then image if available
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, w, h);
-    const img = imgRef.current;
-    if (img) {
-      ctx.drawImage(img, 0, 0, w, h);
-    }
-
-    // Draw all slots
-    for (const slot of cam.slots) {
-      if (!slot.polygon_coords) continue;
-      try {
-        const pts: number[][] = JSON.parse(slot.polygon_coords);
-        const isHighlighted = slot.id === highlightSlotId;
-
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0] * scale, pts[0][1] * scale);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] * scale, pts[i][1] * scale);
-        ctx.closePath();
-
-        if (isHighlighted) {
-          ctx.fillStyle = slot.state === "VEHICLE" ? "rgba(239,68,68,0.4)" : slot.state === "OBSTRUCTED" ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)";
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 3;
-        } else {
-          ctx.fillStyle = "rgba(0,0,0,0.3)";
-          ctx.strokeStyle = "rgba(255,255,255,0.25)";
-          ctx.lineWidth = 1;
-        }
-        ctx.fill();
-        ctx.stroke();
-
-        // Label
-        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length * scale;
-        const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length * scale;
-        ctx.font = isHighlighted ? "bold 14px Inter, sans-serif" : "11px Inter, sans-serif";
-        ctx.fillStyle = isHighlighted ? "#ffffff" : "rgba(255,255,255,0.6)";
-        ctx.textAlign = "center";
-        ctx.fillText(slot.label, cx, cy + 4);
-      } catch { /* ignore */ }
-    }
-  }, [cam, highlightSlotId]);
-
-  // Draw on mount and resize
-  useEffect(() => {
-    drawCanvas();
-    const container = containerRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(() => drawCanvas());
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [drawCanvas]);
-
-  // When snapshotUrl changes: clear old image or load new one
-  useEffect(() => {
-    if (!snapshotUrl) {
-      imgRef.current = null;
-      drawCanvas(); // redraw black canvas with polygons only
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = snapshotUrl;
-    img.onload = () => {
-      imgRef.current = img;
-      drawCanvas();
-    };
-  }, [snapshotUrl, drawCanvas]);
-
-  return (
-    <div ref={containerRef} style={{ width: "100%" }}>
-      <canvas
-        ref={canvasRef}
-        style={{ borderRadius: 12, display: "block", width: "100%" }}
-      />
-    </div>
-  );
-}
