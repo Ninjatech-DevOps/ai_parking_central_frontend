@@ -7,7 +7,7 @@ import {
   BarChart3, Car, Clock, Download, FileDown, ParkingSquare, Timer,
   AlertTriangle, Monitor, TrendingUp, Activity, Loader2, Flame, MapPin,
 } from "lucide-react";
-import type { Area, Location, OccupancyAnalysisResponse, ZoneOccupancyAnalysis } from "@/types/api";
+import type { Area, Location, OccupancyAnalysisResponse } from "@/types/api";
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) return "\u2014";
@@ -39,6 +39,8 @@ interface ReportData {
     completed_sessions: number;
     vehicle_sessions: number;
     obstructed_sessions: number;
+    car_sessions: number;
+    two_wheeler_sessions: number;
     avg_duration_minutes: number | null;
     max_duration_minutes: number | null;
     min_duration_minutes: number | null;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type FormEvent } from "react";
+import { useState, useCallback, useEffect, type FormEvent } from "react";
 import { Plus, Link2, Copy, Trash2, ToggleLeft, ToggleRight, ExternalLink, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,6 @@ export default function SharedLinks() {
   // Search & filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Create/Edit form
   const [showForm, setShowForm] = useState(false);
