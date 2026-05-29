@@ -7,7 +7,7 @@ import { usePolling } from "@/hooks/usePolling";
 import CameraCanvas from "@/components/CameraCanvas";
 import ParkingGrid from "@/components/ParkingGrid";
 import CrudDialog from "@/components/CrudDialog";
-import { Monitor, MapPin, ParkingSquare, AlertTriangle, Clock, TrendingUp, Wifi, WifiOff, Grid3X3, LayoutGrid, ArrowRight } from "lucide-react";
+import { Monitor, MapPin, ParkingSquare, AlertTriangle, Clock, TrendingUp, Wifi, WifiOff, Grid3X3, LayoutGrid, ArrowRight, RefreshCw } from "lucide-react";
 import type { Device, AlertEvent, CanvasResponse, CanvasCamera } from "@/types/api";
 
 function getGreeting() {
@@ -27,6 +27,8 @@ export default function Dashboard() {
   const [totalAlerts, setTotalAlerts] = useState(0);
   const [totalLocations, setTotalLocations] = useState(0);
   const [totalSlots, setTotalSlots] = useState(0);
+
+  const [refreshing, setRefreshing] = useState(false);
 
   // Canvas data — all locations with cameras
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
@@ -60,15 +62,25 @@ export default function Dashboard() {
 
   const online = devices.filter((d) => d.status === "ONLINE").length;
   const offline = devices.filter((d) => d.status === "OFFLINE").length;
+  const allSlots = canvasData.flatMap((c) => c.cameras.flatMap((cam) => cam.slots));
+  const slotsMismatched = allSlots.filter((s) => s.is_mismatched).length;
+  const slotsAvailable = allSlots.filter((s) => s.state === "EMPTY").length;
+  const slotsOccupied = allSlots.filter((s) => s.state === "VEHICLE" && !s.is_mismatched).length;
+  const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED").length;
 
   return (
     <div className="w-full">
-      <div className="mb-8">
-        <p className="text-[12px] font-semibold text-teal-600 uppercase tracking-wider mb-1">{today}</p>
-        <h1 className="text-[24px] font-bold text-slate-900">{getGreeting()}, {user?.name?.split(" ")[0]}</h1>
-        <p className="text-slate-500 text-[14px] mt-0.5">
-          Showing data for <span className="font-semibold text-slate-700">{filterLabel}</span>
-        </p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <p className="text-[12px] font-semibold text-teal-600 uppercase tracking-wider mb-1">{today}</p>
+          <h1 className="text-[24px] font-bold text-slate-900">{getGreeting()}, {user?.name?.split(" ")[0]}</h1>
+          <p className="text-slate-500 text-[14px] mt-0.5">
+            Showing data for <span className="font-semibold text-slate-700">{filterLabel}</span>
+          </p>
+        </div>
+        <button onClick={async () => { setRefreshing(true); await fetchData(); setRefreshing(false); }} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3.5 py-2 transition-colors card-shadow">
+          <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} /> {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
       </div>
 
       {/* Stats */}
@@ -77,7 +89,13 @@ export default function Dashboard() {
           { label: "Devices", value: totalDevices, icon: Monitor, color: "teal",
             extra: <div className="flex gap-2 mt-2"><span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><Wifi size={10} />{online}</span>{offline > 0 && <span className="flex items-center gap-1 text-[11px] text-red-500"><WifiOff size={10} />{offline}</span>}</div> },
           { label: "Locations", value: totalLocations, icon: MapPin, color: "violet" },
-          { label: "Parking Slots", value: totalSlots, icon: ParkingSquare, color: "amber" },
+          { label: "Parking Slots", value: totalSlots, icon: ParkingSquare, color: "amber",
+            extra: totalSlots > 0 ? <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] font-semibold">
+              <span className="text-emerald-600">{slotsAvailable} available</span>
+              <span className="text-red-500">{slotsOccupied} occupied</span>
+              {slotsObstructed > 0 && <span className="text-amber-500">{slotsObstructed} obstructed</span>}
+              {slotsMismatched > 0 && <span className="text-blue-500">{slotsMismatched} mismatched</span>}
+            </div> : null },
           { label: "Active Alerts", value: totalAlerts, icon: AlertTriangle, color: "rose",
             extra: totalAlerts > 0 ? <p className="text-[11px] font-semibold text-red-600 mt-2">{alerts.filter((a) => a.severity === "CRITICAL").length} critical</p> : null },
         ].map(({ label, value, icon: Icon, color, extra }) => (
