@@ -6,6 +6,7 @@ import Pagination from "@/components/Pagination";
 import {
   BarChart3, Car, Clock, Download, FileDown, ParkingSquare, Timer,
   AlertTriangle, Monitor, TrendingUp, Activity, Loader2, Flame, MapPin,
+  CircleCheck, Ban, ShieldAlert,
 } from "lucide-react";
 import type { Area, Location, OccupancyAnalysisResponse } from "@/types/api";
 
@@ -19,6 +20,13 @@ function formatDuration(minutes: number | null): string {
 }
 
 function formatHour(h: number): string {
+  if (h === 0) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
+}
+
+function formatHourShort(h: number): string {
   if (h === 0) return "12a";
   if (h < 12) return `${h}a`;
   if (h === 12) return "12p";
@@ -51,6 +59,7 @@ interface ReportData {
     top_slots: { label: string; count: number }[];
     unique_slots: number;
   };
+  slot_counts: { total: number; available: number; occupied: number; obstructed: number };
   device_summary: { total: number; online: number; offline: number };
   alert_summary: { total: number; critical: number; high: number; medium: number; low: number; active: number; resolved: number };
   sessions: any[];
@@ -361,16 +370,24 @@ export default function Reports() {
       {/* Report content */}
       {!loading && data && s && (
         <div className="space-y-5">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-            <StatCard label="Total Sessions" value={s.total_sessions} icon={Car} color="teal" />
+          {/* Current Slot Status */}
+          {data.slot_counts && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Total Slots" value={data.slot_counts.total} icon={ParkingSquare} color="slate" />
+            <StatCard label="Available" value={data.slot_counts.available} icon={CircleCheck} color="teal" />
+            <StatCard label="Occupied" value={data.slot_counts.occupied} icon={Car} color="red" />
+            <StatCard label="Obstructed" value={data.slot_counts.obstructed} icon={Ban} color="orange" />
+          </div>
+          )}
+
+          {/* Session Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <StatCard label="Total Sessions" value={s.total_sessions} icon={Activity} color="teal" />
             <StatCard label="Currently Parked" value={s.active_sessions} icon={ParkingSquare} color="red" />
             <StatCard label="Avg Duration" value={formatDuration(s.avg_duration_minutes)} icon={Clock} color="violet" />
-            <StatCard label="Peak Hour" value={s.peak_hour !== null ? formatHour(s.peak_hour) : "\u2014"} sub={s.peak_hour !== null ? `${s.peak_hour_count} entries` : undefined} icon={TrendingUp} color="amber" />
-            <StatCard label="Cars" value={s.car_sessions ?? 0} icon={Car} color="blue" />
-            <StatCard label="2-Wheelers" value={s.two_wheeler_sessions ?? 0} icon={Car} color="indigo" />
-            <StatCard label="Vehicles" value={s.vehicle_sessions} icon={Car} color="slate" />
-            <StatCard label="Obstructed" value={s.obstructed_sessions} icon={AlertTriangle} color="orange" />
+            <StatCard label="Peak Hour" value={s.peak_hour !== null ? `${formatHour(s.peak_hour)} – ${formatHour((s.peak_hour + 1) % 24)}` : "\u2014"} sub={s.peak_hour !== null ? `${s.peak_hour_count} entries` : undefined} icon={TrendingUp} color="amber" />
+            <StatCard label="Vehicles" value={s.vehicle_sessions} icon={Car} color="blue" />
+            <StatCard label="Obstructed" value={s.obstructed_sessions} icon={ShieldAlert} color="orange" />
           </div>
 
           {/* Charts row */}
@@ -390,14 +407,14 @@ export default function Reports() {
                     />
                     {/* Tooltip */}
                     <div className="absolute bottom-full mb-1 hidden group-hover:flex items-center bg-slate-800 text-white text-[10px] font-medium rounded px-1.5 py-0.5 whitespace-nowrap z-10">
-                      {count} entries
+                      {formatHour(i)}: {count} entries
                     </div>
                   </div>
                 ))}
               </div>
               <div className="flex gap-[3px] mt-1.5">
                 {s.hourly_distribution.map((_, i) => (
-                  <div key={i} className="flex-1 text-center text-[8px] text-slate-400">
+                  <div key={i} className="flex-1 text-center text-[7px] text-slate-400">
                     {i % 3 === 0 ? formatHour(i) : ""}
                   </div>
                 ))}
@@ -604,6 +621,7 @@ function StatCard({ label, value, icon: Icon, color, sub }: { label: string; val
     amber: { bg: "bg-amber-50", text: "text-amber-600" },
     blue: { bg: "bg-blue-50", text: "text-blue-600" },
     orange: { bg: "bg-orange-50", text: "text-orange-600" },
+    slate: { bg: "bg-slate-100", text: "text-slate-600" },
   };
   const c = colorMap[color] || colorMap.teal;
   return (
@@ -784,7 +802,7 @@ function OccupancyTab({
                       <th className="text-left px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky left-0 bg-slate-50 min-w-[180px]">Zone</th>
                       <th className="px-1 py-2 text-[10px] font-bold text-slate-400 text-center min-w-[30px]">Avg</th>
                       {Array.from({ length: 24 }, (_, h) => (
-                        <th key={h} className="px-0 py-2 text-[9px] font-bold text-slate-400 text-center min-w-[32px]">{formatHour(h)}</th>
+                        <th key={h} className="px-0 py-2 text-[9px] font-bold text-slate-400 text-center min-w-[32px]">{formatHourShort(h)}</th>
                       ))}
                     </tr>
                   </thead>
@@ -807,7 +825,7 @@ function OccupancyTab({
                             </span>
                             {/* Tooltip */}
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-20 shadow-lg">
-                              <div className="font-semibold">{zone.zone_name}, {formatHour(hb.hour)}</div>
+                              <div className="font-semibold">{zone.zone_name}, {formatHourShort(hb.hour)}</div>
                               <div>{hb.occupancy_pct}% occupied ({hb.occupied_slots}/{hb.total_slots} slots)</div>
                               {hb.mismatch_pct > 0 && <div className="text-amber-300">{hb.mismatch_pct}% mismatched</div>}
                             </div>
