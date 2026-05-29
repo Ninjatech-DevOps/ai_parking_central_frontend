@@ -197,6 +197,7 @@ export interface CanvasSlot {
   state: "VEHICLE" | "EMPTY" | "OBSTRUCTED";
   slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
   detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
+  is_mismatched: boolean;
   polygon_coords: string | null;
   pos_x1: number | null;
   pos_y1: number | null;
@@ -245,6 +246,7 @@ export interface DeviceCommand {
   sent_at: string;
   completed_at: string | null;
   error_message: string | null;
+  result: string | null;
   created_at: string;
   updated_at: string;
 }

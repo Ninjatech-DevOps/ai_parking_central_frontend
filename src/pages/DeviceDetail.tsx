@@ -259,10 +259,14 @@ export default function DeviceDetail() {
     label: s.label,
     polygon_coords: s.polygon_coords,
     state: s.state,
+    slot_type: s.slot_type,
+    detected_vehicle_type: s.detected_vehicle_type,
   }));
 
   const isOnline = device?.status === "ONLINE";
-  const vehicle = slots.filter((s) => s.state === "VEHICLE").length;
+  const isMismatch = (s: any) => s.state === "VEHICLE" && s.slot_type && s.slot_type !== "GENERAL" && s.detected_vehicle_type != null && s.detected_vehicle_type !== s.slot_type;
+  const mismatched = slots.filter(isMismatch).length;
+  const vehicle = slots.filter((s) => s.state === "VEHICLE").length - mismatched;
   const empty = slots.filter((s) => s.state === "EMPTY").length;
   const obstructed = slots.filter((s) => s.state === "OBSTRUCTED").length;
 
@@ -431,6 +435,7 @@ export default function DeviceDetail() {
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Empty: {empty}</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Vehicle: {vehicle}</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500" /> Obstructed: {obstructed}</span>
+                {mismatched > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500/30 border border-blue-500" /> Mismatched: {mismatched}</span>}
               </div>
             )}
           </div>
@@ -447,7 +452,9 @@ export default function DeviceDetail() {
             </div>
             <div className="flex flex-col gap-2 max-h-[550px] overflow-y-auto pr-1">
               {slots.map((s) => {
-                const sc = s.state === "VEHICLE"
+                const sc = isMismatch(s)
+                  ? { bg: "bg-blue-50", border: "border-blue-200", color: "text-blue-600" }
+                  : s.state === "VEHICLE"
                   ? { bg: "bg-red-50", border: "border-red-200", color: "text-red-600" }
                   : s.state === "OBSTRUCTED"
                   ? { bg: "bg-amber-50", border: "border-amber-200", color: "text-amber-600" }

@@ -5,6 +5,8 @@ interface SlotData {
   label: string;
   polygon_coords: string | null;
   state: string;
+  slot_type?: string | null;
+  detected_vehicle_type?: string | null;
 }
 
 interface Props {
@@ -62,9 +64,10 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
         ctx.moveTo(pts[0][0] / scaleX, pts[0][1] / scaleY);
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] / scaleX, pts[i][1] / scaleY);
         ctx.closePath();
-        ctx.fillStyle = slot.state === "VEHICLE" ? "rgba(239,68,68,0.3)" : slot.state === "OBSTRUCTED" ? "rgba(245,158,11,0.3)" : "rgba(34,197,94,0.3)";
+        const isMismatched = slot.state === "VEHICLE" && slot.slot_type && slot.slot_type !== "GENERAL" && slot.detected_vehicle_type != null && slot.detected_vehicle_type !== slot.slot_type;
+        ctx.fillStyle = isMismatched ? "rgba(59,130,246,0.3)" : slot.state === "VEHICLE" ? "rgba(239,68,68,0.3)" : slot.state === "OBSTRUCTED" ? "rgba(245,158,11,0.3)" : "rgba(34,197,94,0.3)";
         ctx.fill();
-        ctx.strokeStyle = isHovered ? "#fbbf24" : slot.state === "VEHICLE" ? "#ef4444" : slot.state === "OBSTRUCTED" ? "#f59e0b" : "#22c55e";
+        ctx.strokeStyle = isHovered ? "#fbbf24" : isMismatched ? "#3b82f6" : slot.state === "VEHICLE" ? "#ef4444" : slot.state === "OBSTRUCTED" ? "#f59e0b" : "#22c55e";
         ctx.lineWidth = isHovered ? 3 : 2;
         ctx.stroke();
 

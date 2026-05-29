@@ -9,6 +9,7 @@ const COLORS_DARK = {
   VEHICLE: { fill: "rgba(239, 68, 68, 0.3)", stroke: "#ef4444", text: "#dc2626" },
   EMPTY: { fill: "rgba(34, 197, 94, 0.3)", stroke: "#22c55e", text: "#16a34a" },
   OBSTRUCTED: { fill: "rgba(245, 158, 11, 0.3)", stroke: "#f59e0b", text: "#d97706" },
+  MISMATCHED: { fill: "rgba(59, 130, 246, 0.3)", stroke: "#3b82f6", text: "#2563eb" },
 };
 
 const COLORS_LIGHT = {
@@ -19,6 +20,7 @@ const COLORS_LIGHT = {
   VEHICLE: { fill: "rgba(239, 68, 68, 0.15)", stroke: "#dc2626", text: "#dc2626" },
   EMPTY: { fill: "rgba(34, 197, 94, 0.15)", stroke: "#16a34a", text: "#16a34a" },
   OBSTRUCTED: { fill: "rgba(245, 158, 11, 0.15)", stroke: "#d97706", text: "#d97706" },
+  MISMATCHED: { fill: "rgba(59, 130, 246, 0.15)", stroke: "#2563eb", text: "#2563eb" },
 };
 
 interface Props {
@@ -98,7 +100,8 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
     const offsetY = (height - frameH * scale) / 2;
 
     for (const slot of slotsWithPos) {
-      const color = C[slot.state as keyof typeof C] as { fill: string; stroke: string; text: string } || C.EMPTY;
+      const isMM = slot.is_mismatched;
+      const color = (isMM ? C.MISMATCHED : C[slot.state as keyof typeof C] as { fill: string; stroke: string; text: string }) || C.EMPTY;
       const pts = slot.points.map(([px, py]) => [px * scale + offsetX, py * scale + offsetY]);
 
       ctx.beginPath();
@@ -123,7 +126,8 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
 
       ctx.font = "9px Inter, system-ui, sans-serif";
       ctx.fillStyle = color.text;
-      const displayText = slot.state === "VEHICLE" && slot.detected_vehicle_type
+      const displayText = isMM ? "MISMATCH"
+        : slot.state === "VEHICLE" && slot.detected_vehicle_type
         ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "CAR")
         : slot.state;
       ctx.fillText(displayText, cx, cy + 8);
@@ -192,9 +196,10 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
           >
             <p className="font-bold">{hoveredSlot.label} <span className="font-normal opacity-60">({hoveredSlot.slot_type === "TWO_WHEELER" ? "2W" : hoveredSlot.slot_type === "CAR" ? "Car" : "General"})</span></p>
             <p className={`${
+              hoveredSlot.is_mismatched ? "text-blue-300" :
               hoveredSlot.state === "VEHICLE" ? "text-red-300" :
               hoveredSlot.state === "EMPTY" ? "text-green-300" : "text-amber-300"
-            }`}>{hoveredSlot.state}{hoveredSlot.state === "VEHICLE" && hoveredSlot.detected_vehicle_type ? ` (${hoveredSlot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car"})` : ""}</p>
+            }`}>{hoveredSlot.is_mismatched ? "MISMATCHED" : hoveredSlot.state}{hoveredSlot.state === "VEHICLE" && hoveredSlot.detected_vehicle_type ? ` (${hoveredSlot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car"})` : ""}</p>
           </div>
         )}
       </div>

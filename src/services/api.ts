@@ -137,6 +137,7 @@ export const slotsApi = {
   update: (id: string, d: Record<string, unknown>) => api.patch<ParkingSlot>(`/parking-slots/${id}`, d),
   delete: (id: string) => api.delete(`/parking-slots/${id}`),
   zoneStats: (zoneId: string) => api.get(`/parking-slots/zone/${zoneId}/stats`),
+  snapshot: (slotId: string) => api.post<{ command_id: string; status: string }>(`/parking-slots/${slotId}/snapshot`),
 };
 
 // ─── Devices ───

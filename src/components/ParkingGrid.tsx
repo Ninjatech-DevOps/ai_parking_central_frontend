@@ -7,6 +7,7 @@ interface SlotItem {
   state: string;
   slot_type?: string | null;
   detected_vehicle_type?: string | null;
+  is_mismatched?: boolean;
 }
 
 interface Props {
@@ -31,15 +32,17 @@ const STATES = {
   EMPTY: { bayFill: "rgba(151,196,89,0.06)", bayHover: "rgba(151,196,89,0.14)", carStroke: "#97C459", carBody: "none", windowFill: "transparent", dashed: true, label: "#9CC267", dot: "#97C459" },
   VEHICLE: { bayFill: "rgba(226,75,74,0.10)", bayHover: "rgba(226,75,74,0.18)", carStroke: "#A32D2D", carBody: "#E24B4A", windowFill: "rgba(255,255,255,0.40)", dashed: false, label: "#F5A0A0", dot: "#E24B4A" },
   OBSTRUCTED: { bayFill: "rgba(239,159,39,0.10)", bayHover: "rgba(239,159,39,0.18)", carStroke: "#854F0B", carBody: "#EF9F27", windowFill: "rgba(255,255,255,0.40)", dashed: false, label: "#F5C57A", dot: "#EF9F27" },
+  MISMATCHED: { bayFill: "rgba(59,130,246,0.10)", bayHover: "rgba(59,130,246,0.18)", carStroke: "#1E40AF", carBody: "#3B82F6", windowFill: "rgba(255,255,255,0.40)", dashed: false, label: "#93C5FD", dot: "#3B82F6" },
 };
 
 type StateStyle = typeof STATES.EMPTY;
-function getStyle(state: string): StateStyle {
+function getStyle(state: string, mismatched?: boolean): StateStyle {
+  if (mismatched) return STATES.MISMATCHED;
   return state === "VEHICLE" ? STATES.VEHICLE : state === "OBSTRUCTED" ? STATES.OBSTRUCTED : STATES.EMPTY;
 }
 
-function TopDownCar({ state, large }: { state: string; large?: boolean }) {
-  const s = getStyle(state);
+function TopDownCar({ state, large, mismatched }: { state: string; large?: boolean; mismatched?: boolean }) {
+  const s = getStyle(state, mismatched);
   const fill = s.carBody === "none" ? "transparent" : s.carBody;
   const dash = s.dashed ? "3 2.5" : undefined;
   const headlightOpacity = s.carBody === "none" ? 0 : 1;
@@ -59,8 +62,8 @@ function TopDownCar({ state, large }: { state: string; large?: boolean }) {
   );
 }
 
-function TopDownBike({ state, large }: { state: string; large?: boolean }) {
-  const s = getStyle(state);
+function TopDownBike({ state, large, mismatched }: { state: string; large?: boolean; mismatched?: boolean }) {
+  const s = getStyle(state, mismatched);
   const fill = s.carBody === "none" ? "transparent" : s.carBody;
   const dash = s.dashed ? "3 2.5" : undefined;
   const headlightOpacity = s.carBody === "none" ? 0 : 1;
@@ -89,8 +92,8 @@ function TopDownBike({ state, large }: { state: string; large?: boolean }) {
   );
 }
 
-function ParkingP({ state, large }: { state: string; large?: boolean }) {
-  const s = getStyle(state);
+function ParkingP({ state, large, mismatched }: { state: string; large?: boolean; mismatched?: boolean }) {
+  const s = getStyle(state, mismatched);
   const fill = s.carBody === "none" ? "transparent" : s.carBody;
   const dash = s.dashed ? "3 2.5" : undefined;
 
@@ -106,24 +109,25 @@ function ParkingP({ state, large }: { state: string; large?: boolean }) {
 function SlotIcon({ slot, large }: { slot: SlotItem; large?: boolean }) {
   const isGeneral = !slot.slot_type || slot.slot_type === "GENERAL";
   const isOccupied = slot.state === "VEHICLE" || slot.state === "OBSTRUCTED";
+  const mm = slot.is_mismatched;
 
   if (isGeneral) {
     if (isOccupied && slot.detected_vehicle_type === "TWO_WHEELER") {
-      return <TopDownBike state={slot.state} large={large} />;
+      return <TopDownBike state={slot.state} large={large} mismatched={mm} />;
     }
     if (isOccupied && slot.detected_vehicle_type) {
-      return <TopDownCar state={slot.state} large={large} />;
+      return <TopDownCar state={slot.state} large={large} mismatched={mm} />;
     }
-    return <ParkingP state={slot.state} large={large} />;
+    return <ParkingP state={slot.state} large={large} mismatched={mm} />;
   }
 
   return slot.slot_type === "TWO_WHEELER"
-    ? <TopDownBike state={slot.state} large={large} />
-    : <TopDownCar state={slot.state} large={large} />;
+    ? <TopDownBike state={slot.state} large={large} mismatched={mm} />
+    : <TopDownCar state={slot.state} large={large} mismatched={mm} />;
 }
 
 function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem) => void; large?: boolean }) {
-  const s = getStyle(slot.state);
+  const s = getStyle(slot.state, slot.is_mismatched);
 
   return (
     <button
@@ -166,7 +170,7 @@ function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem)
       <SlotIcon slot={slot} large={large} />
       {large && (
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.5px", color: s.dot, textTransform: "uppercase" }}>
-          {slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : (slot.slot_type === "TWO_WHEELER" ? "2W Available" : slot.slot_type === "CAR" ? "Car Available" : "Available")}
+          {slot.is_mismatched ? "Mismatched" : slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : (slot.slot_type === "TWO_WHEELER" ? "2W Available" : slot.slot_type === "CAR" ? "Car Available" : "Available")}
         </span>
       )}
     </button>
@@ -181,6 +185,7 @@ function Legend({ summary, slots }: { summary: Record<string, number>; slots: Sl
         { label: "Available", value: summary.EMPTY, color: STATES.EMPTY.dot },
         { label: "Occupied", value: summary.VEHICLE, color: STATES.VEHICLE.dot },
         { label: "Obstructed", value: summary.OBSTRUCTED, color: STATES.OBSTRUCTED.dot },
+        ...(summary.MISMATCHED > 0 ? [{ label: "Mismatched", value: summary.MISMATCHED, color: STATES.MISMATCHED.dot }] : []),
       ].map(({ label, value, color }) => (
         <span key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ width: 12, height: 12, borderRadius: "50%", background: color, flexShrink: 0 }} />
@@ -197,8 +202,14 @@ export default function ParkingGrid({ slots, cameraLabel, locationName, onSlotCl
   const cols = colsProp || Math.min(5, Math.max(2, slots.length));
 
   const summary = useMemo(() => {
-    const s = { EMPTY: 0, VEHICLE: 0, OBSTRUCTED: 0 };
-    for (const slot of slots) s[slot.state as keyof typeof s] = (s[slot.state as keyof typeof s] || 0) + 1;
+    const s = { EMPTY: 0, VEHICLE: 0, OBSTRUCTED: 0, MISMATCHED: 0 };
+    for (const slot of slots) {
+      if (slot.is_mismatched) {
+        s.MISMATCHED += 1;
+      } else {
+        s[slot.state as keyof typeof s] = (s[slot.state as keyof typeof s] || 0) + 1;
+      }
+    }
     return s;
   }, [slots]);
 
@@ -342,7 +353,7 @@ export default function ParkingGrid({ slots, cameraLabel, locationName, onSlotCl
       </div>
 
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
+        display: "grid", gridTemplateColumns: `repeat(${summary.MISMATCHED > 0 ? 5 : 4}, 1fr)`,
         gap: 8, marginTop: 10,
       }}>
         {[
@@ -350,6 +361,7 @@ export default function ParkingGrid({ slots, cameraLabel, locationName, onSlotCl
           { label: "AVAILABLE", value: summary.EMPTY, color: "#97C459" },
           { label: "OCCUPIED", value: summary.VEHICLE, color: "#E24B4A" },
           { label: "OBSTRUCTED", value: summary.OBSTRUCTED, color: "#EF9F27" },
+          ...(summary.MISMATCHED > 0 ? [{ label: "MISMATCHED", value: summary.MISMATCHED, color: "#3B82F6" }] : []),
         ].map(({ label, value, color }) => (
           <div key={label} style={{
             background: "#fff", borderRadius: 10,

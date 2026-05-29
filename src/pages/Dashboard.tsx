@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilter } from "@/contexts/FilterContext";
-import { devicesApi, alertsApi, locationsApi, slotEventsApi } from "@/services/api";
+import { devicesApi, alertsApi, locationsApi, slotsApi, commandsApi, slotEventsApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CameraCanvas from "@/components/CameraCanvas";
 import ParkingGrid from "@/components/ParkingGrid";
@@ -153,7 +153,30 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
     setSlotImageLoading(true);
 
     try {
-      const { data } = await slotEventsApi.bySlot(slotId, "limit=1");
+      // Request live snapshot from device
+      const { data: cmdData } = await slotsApi.snapshot(slotId);
+      const commandId = cmdData.command_id;
+
+      // Poll for result (max 15s)
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const { data: status } = await commandsApi.status(commandId);
+        if (status.status === "COMPLETED" && status.result) {
+          try {
+            const result = JSON.parse(status.result);
+            if (result.image_url) {
+              setSlotImageUrl(result.image_url);
+              setSlotImageLoading(false);
+              return;
+            }
+          } catch { /* parse error */ }
+          break;
+        }
+        if (status.status === "FAILED") break;
+      }
+
+      // Fallback: try last event image
+      const { data } = await slotEventsApi.bySlot(slotId, "limit=10");
       const events = Array.isArray(data) ? data : [];
       const latest = events.find((e: { image_url?: string | null }) => e.image_url);
       if (latest?.image_url) {
@@ -197,7 +220,7 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{loc.location_name}</p>
               {viewMode === "grid" ? (
                 <ParkingGrid
-                  slots={cam.slots.map((s) => ({ id: s.id, label: s.label, state: s.state, slot_type: s.slot_type, detected_vehicle_type: s.detected_vehicle_type }))}
+                  slots={cam.slots.map((s) => ({ id: s.id, label: s.label, state: s.state, slot_type: s.slot_type, detected_vehicle_type: s.detected_vehicle_type, is_mismatched: s.is_mismatched }))}
                   cameraLabel={cam.position_label}
                   onSlotClick={(slot) => handleSlotClick(slot.id, cam, loc.location_name)}
                 />
@@ -219,8 +242,11 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
         {selectedSlot && (() => {
           const slot = selectedSlot.cam.slots.find((s) => s.id === selectedSlot.slotId);
           if (!slot) return null;
-          const sc = slot.state === "VEHICLE" ? "text-red-500" : slot.state === "OBSTRUCTED" ? "text-amber-500" : "text-emerald-500";
-          const bg = slot.state === "VEHICLE" ? "bg-red-50" : slot.state === "OBSTRUCTED" ? "bg-amber-50" : "bg-emerald-50";
+          const mm = slot.is_mismatched;
+          const sc = mm ? "text-blue-500" : slot.state === "VEHICLE" ? "text-red-500" : slot.state === "OBSTRUCTED" ? "text-amber-500" : "text-emerald-500";
+          const bg = mm ? "bg-blue-50" : slot.state === "VEHICLE" ? "bg-red-50" : slot.state === "OBSTRUCTED" ? "bg-amber-50" : "bg-emerald-50";
+          const dotBg = mm ? "bg-blue-500" : slot.state === "VEHICLE" ? "bg-red-500" : slot.state === "OBSTRUCTED" ? "bg-amber-500" : "bg-emerald-500";
+          const statusLabel = mm ? "MISMATCHED" : slot.state;
           return (
             <div className="mt-3">
               {/* Slot info */}
@@ -240,8 +266,8 @@ function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }
                     </span>
                   )}
                   <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${bg} ${sc}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${slot.state === "VEHICLE" ? "bg-red-500" : slot.state === "OBSTRUCTED" ? "bg-amber-500" : "bg-emerald-500"}`} />
-                    {slot.state}
+                    <span className={`w-1.5 h-1.5 rounded-full ${dotBg}`} />
+                    {statusLabel}
                   </span>
                 </div>
               </div>
