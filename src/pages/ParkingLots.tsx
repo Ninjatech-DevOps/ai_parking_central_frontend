@@ -171,8 +171,8 @@ export default function Locations() {
             <TableRow className="border-b border-slate-100">
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">City</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Taluka</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Village</TableHead>
+              {/* <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Taluka</TableHead>
+              <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Village</TableHead> */}
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Area</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Type</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Capacity</TableHead>
@@ -185,8 +185,8 @@ export default function Locations() {
               <TableRow key={l.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
                 <TableCell><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center"><MapPin size={14} className="text-violet-500" /></div><span className="text-[13px] font-semibold text-slate-800">{l.name}</span></div></TableCell>
                 <TableCell className="text-[13px] text-slate-600">{formCities.find((c) => c.id === l.city_id)?.name || "—"}</TableCell>
-                <TableCell className="text-[13px] text-slate-500">{allTalukas.find((t) => t.id === l.taluka_id)?.name || "—"}</TableCell>
-                <TableCell className="text-[13px] text-slate-500">{allVillages.find((v) => v.id === l.village_id)?.name || "—"}</TableCell>
+                {/* <TableCell className="text-[13px] text-slate-500">{allTalukas.find((t) => t.id === l.taluka_id)?.name || "—"}</TableCell>
+                <TableCell className="text-[13px] text-slate-500">{allVillages.find((v) => v.id === l.village_id)?.name || "—"}</TableCell> */}
                 <TableCell className="text-[13px] text-slate-500">{allAreas.find((a) => a.id === l.area_id)?.name || "—"}</TableCell>
                 <TableCell><span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{l.location_type}</span></TableCell>
                 <TableCell className="text-[13px] text-slate-600 font-semibold">{l.total_capacity}</TableCell>

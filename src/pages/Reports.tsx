@@ -811,7 +811,7 @@ function OccupancyTab({
                       <tr key={zone.zone_id} className="border-b border-slate-50 hover:bg-slate-50/30">
                         <td className="px-3 py-1.5 sticky left-0 bg-white">
                           <div className="text-[11px] font-semibold text-slate-800">{zone.zone_name}</div>
-                          <div className="text-[9px] text-slate-400">{zone.location_name}{zone.floor_label ? ` \u00b7 ${zone.floor_label}` : ""} \u00b7 {zone.total_slots} slots</div>
+                          <div className="text-[9px] text-slate-400">{zone.location_name}{zone.floor_label ? ` · ${zone.floor_label}` : ""} · {zone.total_slots} slots</div>
                         </td>
                         <td className="px-1 py-1.5 text-center">
                           <span className={`inline-block text-[10px] font-bold rounded px-1.5 py-0.5 ${occupancyColor(zone.avg_occupancy_pct, data.threshold)}`}>

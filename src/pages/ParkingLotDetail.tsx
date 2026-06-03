@@ -338,7 +338,7 @@ export default function ParkingLotDetail() {
           {devices.length === 0 ? (
             <div className="bg-white rounded-2xl card-shadow p-12 text-center">
               <Monitor size={32} className="text-slate-200 mx-auto mb-3" />
-              <p className="text-[13px] text-slate-400">No devices assigned to this parking lot</p>
+              <p className="text-[13px] text-slate-400">No devices assigned to this parking location</p>
             </div>
           ) : devices.map((d) => {
             const devCameras = cameras[d.id] || [];

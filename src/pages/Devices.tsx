@@ -222,7 +222,7 @@ export default function Devices() {
           <TableHeader>
             <TableRow className="border-b border-slate-100">
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Device</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Parking Lot</TableHead>
+              <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Parking Location</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Area</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Heartbeat</TableHead>

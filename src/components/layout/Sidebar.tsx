@@ -29,7 +29,7 @@ const sections: SectionConfig[] = [
   {
     label: "Parking Mgmt",
     items: [
-      { to: "/parking-lots", label: "Parking Lots", icon: Building2, permissions: ["locations:view"] },
+      { to: "/parking-lots", label: "Parking Locations", icon: Building2, permissions: ["locations:view"] },
     ],
   },
   {

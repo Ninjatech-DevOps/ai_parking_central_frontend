@@ -2,13 +2,15 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilter } from "@/contexts/FilterContext";
-import { devicesApi, alertsApi, locationsApi, slotsApi, commandsApi, slotEventsApi } from "@/services/api";
+import { devicesApi, locationsApi, camerasApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
-import CameraCanvas from "@/components/CameraCanvas";
-import ParkingGrid from "@/components/ParkingGrid";
 import CrudDialog from "@/components/CrudDialog";
-import { Monitor, MapPin, ParkingSquare, AlertTriangle, Clock, TrendingUp, Wifi, WifiOff, Grid3X3, LayoutGrid, ArrowRight, RefreshCw } from "lucide-react";
-import type { Device, AlertEvent, CanvasResponse, CanvasCamera } from "@/types/api";
+import {
+  MapPin, ParkingSquare, Wifi, WifiOff,
+  RefreshCw, Camera, CircleCheck, Car, Ban,
+  Eye, Image as ImageIcon, Loader2,
+} from "lucide-react";
+import type { Device, Location, CanvasResponse, CanvasCamera } from "@/types/api";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -19,57 +21,83 @@ const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { filterLabel, deviceQueryParams, queryParams, alertQueryParams, locationId } = useFilter();
+  const { filterLabel, deviceQueryParams, queryParams, locationId, areaId, areas } = useFilter();
 
   const [devices, setDevices] = useState<Device[]>([]);
-  const [totalDevices, setTotalDevices] = useState(0);
-  const [alerts, setAlerts] = useState<AlertEvent[]>([]);
-  const [totalAlerts, setTotalAlerts] = useState(0);
-  const [totalLocations, setTotalLocations] = useState(0);
-  const [totalSlots, setTotalSlots] = useState(0);
-
+  const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Canvas data — all locations with cameras
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
+
+  // Snapshot dialog state
+  const [snapshotCam, setSnapshotCam] = useState<{ cam: CanvasCamera; locName: string } | null>(null);
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     const devParams = deviceQueryParams ? `page_size=200&${deviceQueryParams}` : "page_size=200";
-    const locParams = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
-    const [d, a, l] = await Promise.all([
-      devicesApi.list(devParams), alertsApi.list(alertQueryParams ? `page_size=50&${alertQueryParams}` : "page_size=50"),
+    // Locations API doesn't accept location_id — use area_id filter when available
+    const locParams = (() => {
+      const p = new URLSearchParams({ page_size: "100" });
+      if (areaId) p.set("area_id", areaId);
+      else if (queryParams) return `page_size=100&${queryParams}`;
+      return p.toString();
+    })();
+    const [d, l] = await Promise.all([
+      devicesApi.list(devParams),
       locationsApi.list(locParams),
     ]);
-    setDevices(d.data.items || []); setTotalDevices(d.data.total || 0);
-    setAlerts(a.data.items || []); setTotalAlerts(a.data.total || 0);
-    setTotalLocations(l.data.total || 0);
+    setDevices(d.data.items || []);
 
-    // When a specific location is selected, only fetch canvas for that one;
-    // otherwise fetch for all listed locations (the list endpoint doesn't support location_id filter)
+    // When a specific location is selected, only use that one
     const locationsForCanvas = locationId
       ? (l.data.items || []).filter((loc) => loc.id === locationId)
       : (l.data.items || []);
+    setLocationsList(locationsForCanvas);
 
     const canvases = await Promise.all(
       locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
     );
-    const validCanvases = canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0);
-    setCanvasData(validCanvases);
-    // Compute total slots from canvas data (accurate, filter-aware)
-    setTotalSlots(validCanvases.reduce((sum, c) => sum + c.cameras.reduce((s2, cam) => s2 + cam.slots.length, 0), 0));
-  }, [deviceQueryParams, queryParams, alertQueryParams, locationId]);
+    setCanvasData(canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0));
+  }, [deviceQueryParams, queryParams, locationId, areaId]);
   usePolling(fetchData, 5000);
 
   const online = devices.filter((d) => d.status === "ONLINE").length;
   const offline = devices.filter((d) => d.status === "OFFLINE").length;
+  const totalCameras = canvasData.reduce((sum, c) => sum + c.cameras.length, 0);
   const allSlots = canvasData.flatMap((c) => c.cameras.flatMap((cam) => cam.slots));
-  const slotsMismatched = allSlots.filter((s) => s.is_mismatched).length;
+  const totalSlots = allSlots.length;
   const slotsAvailable = allSlots.filter((s) => s.state === "EMPTY").length;
-  const slotsOccupied = allSlots.filter((s) => s.state === "VEHICLE" && !s.is_mismatched).length;
+  const slotsOccupied = allSlots.filter((s) => s.state === "VEHICLE").length;
   const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED").length;
+  // const slotsMismatched = allSlots.filter((s) => s.is_mismatched).length;
+
+  // Flatten cameras with location info for table
+  const cameraRows = canvasData.flatMap((loc) =>
+    loc.cameras.map((cam) => {
+      const available = cam.slots.filter((s) => s.state === "EMPTY").length;
+      const occupied = cam.slots.filter((s) => s.state === "VEHICLE").length;
+      const obstructed = cam.slots.filter((s) => s.state === "OBSTRUCTED").length;
+      const mismatched = cam.slots.filter((s) => s.is_mismatched).length;
+      return { cam, locName: loc.location_name, locId: loc.location_id, total: cam.slots.length, available, occupied, obstructed, mismatched };
+    })
+  );
+
+  async function handleSnapshot(cam: CanvasCamera, locName: string) {
+    setSnapshotCam({ cam, locName });
+    setSnapshotUrl(null);
+    setSnapshotLoading(true);
+    try {
+      const url = await camerasApi.snapshotBlobUrl(cam.id);
+      setSnapshotUrl(url);
+    } catch {
+      setSnapshotUrl(null);
+    }
+    setSnapshotLoading(false);
+  }
 
   return (
     <div className="w-full">
+      {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
           <p className="text-[12px] font-semibold text-teal-600 uppercase tracking-wider mb-1">{today}</p>
@@ -83,42 +111,231 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 mb-8">
-        {[
-          { label: "Devices", value: totalDevices, icon: Monitor, color: "teal",
-            extra: <div className="flex gap-2 mt-2"><span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><Wifi size={10} />{online}</span>{offline > 0 && <span className="flex items-center gap-1 text-[11px] text-red-500"><WifiOff size={10} />{offline}</span>}</div> },
-          { label: "Locations", value: totalLocations, icon: MapPin, color: "violet" },
-          { label: "Parking Slots", value: totalSlots, icon: ParkingSquare, color: "amber",
-            extra: totalSlots > 0 ? <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] font-semibold">
-              <span className="text-emerald-600">{slotsAvailable} available</span>
-              <span className="text-red-500">{slotsOccupied} occupied</span>
-              {slotsObstructed > 0 && <span className="text-amber-500">{slotsObstructed} obstructed</span>}
-              {slotsMismatched > 0 && <span className="text-blue-500">{slotsMismatched} mismatched</span>}
-            </div> : null },
-          { label: "Active Alerts", value: totalAlerts, icon: AlertTriangle, color: "rose",
-            extra: totalAlerts > 0 ? <p className="text-[11px] font-semibold text-red-600 mt-2">{alerts.filter((a) => a.severity === "CRITICAL").length} critical</p> : null },
-        ].map(({ label, value, icon: Icon, color, extra }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 card-shadow transition-lift hover:card-shadow-hover cursor-default">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                color === "teal" ? "bg-teal-50 text-teal-600" : color === "violet" ? "bg-violet-50 text-violet-600" : color === "amber" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
-              }`}><Icon size={20} strokeWidth={1.8} /></div>
-              <TrendingUp size={14} className="text-slate-300" />
-            </div>
-            <p className="text-[28px] font-bold text-slate-900 leading-none">{value}</p>
-            <p className="text-[13px] text-slate-500 mt-1">{label}</p>
-            {extra}
-          </div>
-        ))}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+        <StatCard label="Parking Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
+        <StatCard label="Cameras" value={totalCameras} icon={Camera} bg="bg-blue-50" text="text-blue-600" />
+        <StatCard label="Online" value={online} icon={Wifi} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Offline" value={offline} icon={WifiOff} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Total Slots" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
+        <StatCard label="Available" value={slotsAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Occupied" value={slotsOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
-      {/* Live Camera Views */}
-      {canvasData.length > 0 && (
-        <DashboardCameraSection canvasData={canvasData} />
-      )}
+      {/* Camera Table */}
+      <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-8">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-[16px] font-bold text-slate-900">Camera Overview</h2>
+            <p className="text-[12px] text-slate-400 mt-0.5">{cameraRows.length} cameras across {canvasData.length} locations</p>
+          </div>
+        </div>
+        {cameraRows.length === 0 ? (
+          <div className="flex flex-col items-center py-20 text-slate-400">
+            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
+              <Camera size={24} className="text-slate-300" />
+            </div>
+            <p className="text-[14px] font-semibold">No cameras found</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">Cameras will appear once devices are configured</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-100">
+                  <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Camera</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Occupied</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Obstructed</th>
+                  {/* <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mismatched</th> */}
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cameraRows.map(({ cam, locName, total, available, occupied, obstructed /* , mismatched */ }, idx) => {
+                  const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
+                  return (
+                    <tr key={cam.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                            <MapPin size={16} className="text-violet-500" />
+                          </div>
+                          <span className="text-[14px] font-semibold text-slate-800">{locName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                            <Camera size={13} className="text-blue-500" />
+                          </div>
+                          <span className="text-[14px] font-semibold text-slate-700">{cam.position_label}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-slate-800">{total}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-emerald-600">{available}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-red-500">{occupied}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className={`text-[18px] font-bold ${obstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{obstructed}</span>
+                      </td>
+                      {/* <td className="px-3 py-4 text-center">
+                        <span className={`text-[18px] font-bold ${mismatched > 0 ? "text-blue-500" : "text-slate-300"}`}>{mismatched}</span>
+                      </td> */}
+                      <td className="px-3 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-full max-w-[80px] h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${occupancyPct >= 90 ? "bg-red-500" : occupancyPct >= 60 ? "bg-amber-400" : "bg-emerald-400"}`}
+                              style={{ width: `${occupancyPct}%` }}
+                            />
+                          </div>
+                          <span className={`text-[12px] font-bold tabular-nums ${occupancyPct >= 90 ? "text-red-500" : occupancyPct >= 60 ? "text-amber-500" : "text-emerald-600"}`}>
+                            {occupancyPct}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleSnapshot(cam, locName)}
+                            title="Get latest image"
+                            className="w-8 h-8 rounded-lg bg-teal-50 hover:bg-teal-100 flex items-center justify-center transition-colors group"
+                          >
+                            <ImageIcon size={15} className="text-teal-600 group-hover:text-teal-700" />
+                          </button>
+                          <button
+                            onClick={() => navigate(`/parking-lots`)}
+                            title="View slots"
+                            className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center transition-colors group"
+                          >
+                            <Eye size={15} className="text-slate-500 group-hover:text-slate-700" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Totals row */}
+                <tr className="bg-slate-50 border-t-2 border-slate-200">
+                  <td className="px-6 py-4" colSpan={2}>
+                    <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Totals</span>
+                  </td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalSlots}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{slotsAvailable}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{slotsOccupied}</span></td>
+                  <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsObstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{slotsObstructed}</span></td>
+                  {/* <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsMismatched > 0 ? "text-blue-500" : "text-slate-300"}`}>{slotsMismatched}</span></td> */}
+                  <td className="px-3 py-4 text-center">
+                    <span className="text-[13px] font-bold text-slate-500">
+                      {totalSlots > 0 ? `${Math.round((slotsOccupied / totalSlots) * 100)}% occupied` : "--"}
+                    </span>
+                  </td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-      {/* Alerts + Devices */}
+      {/* Parking Locations */}
+      <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-8">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-[16px] font-bold text-slate-900">Parking Locations</h2>
+            <p className="text-[12px] text-slate-400 mt-0.5">{locationsList.length} locations</p>
+          </div>
+          <button onClick={() => navigate("/parking-lots")} className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1">Manage <Eye size={11} /></button>
+        </div>
+        {locationsList.length === 0 ? (
+          <div className="flex flex-col items-center py-16 text-slate-400">
+            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
+              <MapPin size={24} className="text-slate-300" />
+            </div>
+            <p className="text-[14px] font-semibold">No parking locations found</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary row */}
+            <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              {[
+                { label: "Total Locations", value: locationsList.length, color: "text-slate-700" },
+                { label: "Active", value: locationsList.filter((l) => l.is_active).length, color: "text-emerald-600" },
+                { label: "Inactive", value: locationsList.filter((l) => !l.is_active).length, color: "text-red-500" },
+                { label: "Total Capacity", value: locationsList.reduce((s, l) => s + (l.total_capacity || 0), 0), color: "text-violet-600" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-center">
+                  <p className={`text-[22px] font-extrabold ${color}`}>{value}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+            {/* Locations table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-100">
+                    <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Area</th>
+                    <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
+                    <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Capacity</th>
+                    <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {locationsList.map((loc, idx) => (
+                    <tr key={loc.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                            <MapPin size={16} className="text-violet-500" />
+                          </div>
+                          <span className="text-[14px] font-semibold text-slate-800">{loc.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-500">{areas.find((a) => a.id === loc.area_id)?.name || "—"}</td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{loc.location_type}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-slate-800">{loc.total_capacity}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${loc.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? "bg-emerald-500" : "bg-red-500"}`} />
+                          {loc.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          onClick={() => navigate(`/parking-lots/${loc.id}`)}
+                          title="View details"
+                          className="w-8 h-8 rounded-lg bg-teal-50 hover:bg-teal-100 flex items-center justify-center transition-colors group mx-auto"
+                        >
+                          <Eye size={15} className="text-teal-600 group-hover:text-teal-700" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Alerts + Devices — hidden for now
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5">
         <div className="col-span-1 lg:col-span-3 bg-white rounded-2xl card-shadow overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
@@ -154,163 +371,53 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
+      */}
 
-
-function DashboardCameraSection({ canvasData }: { canvasData: CanvasResponse[] }) {
-  const [viewMode, setViewMode] = useState<"grid" | "canvas">("grid");
-  const [selectedSlot, setSelectedSlot] = useState<{ cam: CanvasCamera; slotId: string; locName: string } | null>(null);
-  const [slotImageUrl, setSlotImageUrl] = useState<string | null>(null);
-  const [slotImageLoading, setSlotImageLoading] = useState(false);
-
-  async function handleSlotClick(slotId: string, cam: CanvasCamera, locName: string) {
-    setSelectedSlot({ cam, slotId, locName });
-    setSlotImageUrl(null);
-    setSlotImageLoading(true);
-
-    try {
-      // Request live snapshot from device
-      const { data: cmdData } = await slotsApi.snapshot(slotId);
-      const commandId = cmdData.command_id;
-
-      // Poll for result (max 15s)
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 1000));
-        const { data: status } = await commandsApi.status(commandId);
-        if (status.status === "COMPLETED" && status.result) {
-          try {
-            const result = JSON.parse(status.result);
-            if (result.image_url) {
-              setSlotImageUrl(result.image_url);
-              setSlotImageLoading(false);
-              return;
-            }
-          } catch { /* parse error */ }
-          break;
-        }
-        if (status.status === "FAILED") break;
-      }
-
-      // Fallback: try last event image
-      const { data } = await slotEventsApi.bySlot(slotId, "limit=10");
-      const events = Array.isArray(data) ? data : [];
-      const latest = events.find((e: { image_url?: string | null }) => e.image_url);
-      if (latest?.image_url) {
-        setSlotImageUrl(latest.image_url);
-      }
-    } catch { /* no events */ }
-    setSlotImageLoading(false);
-  }
-
-  return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-[16px] font-bold text-slate-900">Live Parking View</h2>
-          <p className="text-[12px] text-slate-400 mt-0.5">
-            {canvasData.reduce((s, c) => s + c.cameras.length, 0)} cameras across {canvasData.length} locations
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl overflow-hidden border border-slate-200">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-all ${viewMode === "grid" ? "bg-teal-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
-            >
-              <Grid3X3 size={13} /> Grid
-            </button>
-            <button
-              onClick={() => setViewMode("canvas")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border-l border-slate-200 transition-all ${viewMode === "canvas" ? "bg-teal-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
-            >
-              <LayoutGrid size={13} /> Canvas
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-        {canvasData.map((loc) =>
-          loc.cameras.map((cam) => (
-            <div key={cam.id}>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{loc.location_name}</p>
-              {viewMode === "grid" ? (
-                <ParkingGrid
-                  slots={cam.slots.map((s) => ({ id: s.id, label: s.label, state: s.state, slot_type: s.slot_type, detected_vehicle_type: s.detected_vehicle_type, is_mismatched: s.is_mismatched }))}
-                  cameraLabel={cam.position_label}
-                  onSlotClick={(slot) => handleSlotClick(slot.id, cam, loc.location_name)}
-                />
+      {/* Snapshot Dialog */}
+      <CrudDialog
+        open={!!snapshotCam}
+        onClose={() => { setSnapshotCam(null); setSnapshotUrl(null); }}
+        title={snapshotCam ? `${snapshotCam.locName} — ${snapshotCam.cam.position_label}` : ""}
+        maxWidth="min(560px, 95vw)"
+      >
+        {snapshotCam && (
+          <div className="mt-3">
+            <div className="flex items-center gap-3 mb-3 px-1">
+              <span className="text-[12px] font-semibold text-slate-500">{snapshotCam.cam.slots.length} slots</span>
+              <span className="text-[12px] font-semibold text-emerald-600">{snapshotCam.cam.slots.filter((s) => s.state === "EMPTY").length} available</span>
+              <span className="text-[12px] font-semibold text-red-500">{snapshotCam.cam.slots.filter((s) => s.state === "VEHICLE").length} occupied</span>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+              {snapshotLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 size={24} className="animate-spin text-teal-500" />
+                </div>
+              ) : snapshotUrl ? (
+                <img src={snapshotUrl} alt="Camera snapshot" className="w-full object-contain" />
               ) : (
-                <CameraCanvas camera={cam} />
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <Camera size={28} className="text-slate-200 mb-2" />
+                  <p className="text-[13px]">Snapshot unavailable</p>
+                  <p className="text-[11px] text-slate-300 mt-0.5">Device may be offline</p>
+                </div>
               )}
             </div>
-          ))
+          </div>
         )}
-      </div>
-
-      {/* Slot detail dialog — cropped slot image */}
-      <CrudDialog
-        open={!!selectedSlot}
-        onClose={() => { setSelectedSlot(null); setSlotImageUrl(null); }}
-        title={`${selectedSlot?.locName} — ${selectedSlot?.cam.position_label}`}
-        maxWidth="min(480px, 95vw)"
-      >
-        {selectedSlot && (() => {
-          const slot = selectedSlot.cam.slots.find((s) => s.id === selectedSlot.slotId);
-          if (!slot) return null;
-          const mm = slot.is_mismatched;
-          const sc = mm ? "text-blue-500" : slot.state === "VEHICLE" ? "text-red-500" : slot.state === "OBSTRUCTED" ? "text-amber-500" : "text-emerald-500";
-          const bg = mm ? "bg-blue-50" : slot.state === "VEHICLE" ? "bg-red-50" : slot.state === "OBSTRUCTED" ? "bg-amber-50" : "bg-emerald-50";
-          const dotBg = mm ? "bg-blue-500" : slot.state === "VEHICLE" ? "bg-red-500" : slot.state === "OBSTRUCTED" ? "bg-amber-500" : "bg-emerald-500";
-          const statusLabel = mm ? "MISMATCHED" : slot.state;
-          return (
-            <div className="mt-3">
-              {/* Slot info */}
-              <div className="flex items-center justify-between px-1 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-bold text-slate-800">{slot.label}</span>
-                  {slot.slot_type && slot.slot_type !== "GENERAL" && (
-                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">
-                      {slot.slot_type === "TWO_WHEELER" ? "2-Wheeler" : "Car"}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {slot.state === "VEHICLE" && slot.detected_vehicle_type && (
-                    <span className="text-[10px] font-semibold text-blue-500 bg-blue-50 rounded px-1.5 py-0.5">
-                      {slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : "Car"}
-                    </span>
-                  )}
-                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${bg} ${sc}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${dotBg}`} />
-                    {statusLabel}
-                  </span>
-                </div>
-              </div>
-              {/* Cropped slot image */}
-              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                {slotImageLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : slotImageUrl ? (
-                  <img src={slotImageUrl} alt={slot.label} className="w-full object-contain" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                    <ParkingSquare size={28} className="text-slate-200 mb-2" />
-                    <p className="text-[13px]">No image available</p>
-                    <p className="text-[11px] text-slate-300 mt-0.5">Image will appear after next detection</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
       </CrudDialog>
     </div>
   );
 }
 
 
+function StatCard({ label, value, icon: Icon, bg, text }: { label: string; value: number; icon: React.ElementType; bg: string; text: string }) {
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-4 flex flex-col items-center text-center transition-lift hover:card-shadow-hover">
+      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-2`}>
+        <Icon size={18} className={text} />
+      </div>
+      <p className={`text-[24px] font-extrabold leading-none ${text}`}>{value}</p>
+      <p className="text-[10px] text-slate-400 mt-1.5 uppercase tracking-wider font-bold">{label}</p>
+    </div>
+  );
+}
