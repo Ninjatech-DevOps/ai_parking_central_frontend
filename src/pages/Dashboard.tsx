@@ -232,6 +232,15 @@ export default function Dashboard() {
                           >
                             <ImageIcon size={15} className="text-teal-600 group-hover:text-teal-700" />
                           </button>
+                          {cam.debug_frame_url && (
+                            <button
+                              onClick={() => { setSnapshotCam({ cam, locName }); setSnapshotUrl(cam.debug_frame_url); setSnapshotLoading(false); }}
+                              title="Detection view (YOLO bboxes)"
+                              className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors group"
+                            >
+                              <Eye size={15} className="text-red-500 group-hover:text-red-600" />
+                            </button>
+                          )}
                           <button
                             onClick={() => navigate(`/parking-lots`)}
                             title="View slots"

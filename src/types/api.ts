@@ -220,6 +220,7 @@ export interface CanvasCamera {
   status: string;
   frame_width: number | null;
   frame_height: number | null;
+  debug_frame_url: string | null;
   slots: CanvasSlot[];
 }
 
