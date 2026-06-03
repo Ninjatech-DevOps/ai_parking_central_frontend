@@ -50,6 +50,10 @@ export default function DeviceDetail() {
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [deletingSlot, setDeletingSlot] = useState<ParkingSlot | null>(null);
+  const [showDetection, setShowDetection] = useState(false);
+  const [pendingPolygon, setPendingPolygon] = useState<number[][] | null>(null);
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [slotModalSaving, setSlotModalSaving] = useState(false);
 
   // Fetch device
   const fetchDevice = useCallback(async () => {
@@ -194,27 +198,40 @@ export default function DeviceDetail() {
     }
   }
 
-  // Slot CRUD via polygon drawing
-  async function handlePolygonComplete(polygon: number[][]) {
+  // Slot CRUD via polygon drawing — show popup after drawing
+  function handlePolygonComplete(polygon: number[][]) {
     if (!selectedCamera || !device) return;
+    setPendingPolygon(polygon);
+    setSlotType("GENERAL");
+    setCapCar("1");
+    setCap2w("0");
+    setShowSlotModal(true);
+  }
+
+  async function handleSlotModalSave() {
+    if (!selectedCamera || !device || !pendingPolygon) return;
     const createdLabel = nextLabel.trim();
-    if (!createdLabel) { showError("Enter a slot label before drawing"); return; }
+    if (!createdLabel) { showError("Enter a slot label"); return; }
+    setSlotModalSaving(true);
     try {
       await slotsApi.create({
         label: createdLabel,
         zone_id: device.zone_id,
         camera_id: selectedCamera.id,
-        polygon_coords: JSON.stringify(polygon),
+        polygon_coords: JSON.stringify(pendingPolygon),
         slot_type: slotType,
         capacity_car: parseInt(capCar) || 0,
         capacity_two_wheeler: parseInt(cap2w) || 0,
       });
       showSuccess(`Slot ${createdLabel} created`);
-      // Auto-increment: "B11" → "B12", "A-01" → "A-02", "Slot 5" → "Slot 6"
       setNextLabel(incrementLabel(createdLabel));
+      setShowSlotModal(false);
+      setPendingPolygon(null);
       fetchSlotsForCamera(selectedCamera.id, false);
     } catch (err: any) {
       showError(err?.response?.data?.detail || "Failed to create slot");
+    } finally {
+      setSlotModalSaving(false);
     }
   }
 
@@ -367,16 +384,22 @@ export default function DeviceDetail() {
                 <div className="flex items-center gap-3">
                   <div className="flex rounded-xl overflow-hidden border border-slate-200">
                     <button
-                      onClick={() => setDrawMode(false)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-all ${!drawMode ? "bg-teal-600 text-white" : "bg-white text-slate-500"}`}
+                      onClick={() => { setDrawMode(false); setShowDetection(false); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-all ${!drawMode && !showDetection ? "bg-teal-600 text-white" : "bg-white text-slate-500"}`}
                     >
                       <Eye size={12} /> View
                     </button>
                     <button
-                      onClick={() => setDrawMode(true)}
+                      onClick={() => { setDrawMode(true); setShowDetection(false); }}
                       className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border-l border-slate-200 transition-all ${drawMode ? "bg-teal-600 text-white" : "bg-white text-slate-500"}`}
                     >
                       <PenTool size={12} /> Draw
+                    </button>
+                    <button
+                      onClick={() => { setShowDetection(!showDetection); setDrawMode(false); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border-l border-slate-200 transition-all ${showDetection ? "bg-red-500 text-white" : "bg-white text-slate-500"}`}
+                    >
+                      <Eye size={12} /> Detection
                     </button>
                   </div>
                   {drawMode && (
@@ -393,22 +416,6 @@ export default function DeviceDetail() {
                         <span className="text-[11px] text-slate-500 font-medium">Label:</span>
                         <Input value={nextLabel} onChange={(e) => setNextLabel(e.target.value)} className="w-20 h-7 text-[12px] rounded-lg" />
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500 font-medium">Type:</span>
-                        <select value={slotType} onChange={(e) => setSlotType(e.target.value)} className="h-7 rounded-lg border border-slate-200 px-2 text-[11px] font-medium">
-                          <option value="GENERAL">General</option>
-                          <option value="CAR">Car</option>
-                          <option value="TWO_WHEELER">2-Wheeler</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500 font-medium">Car:</span>
-                        <Input type="number" min="0" value={capCar} onChange={(e) => setCapCar(e.target.value)} className="w-12 h-7 text-[12px] rounded-lg text-center" />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500 font-medium">2W:</span>
-                        <Input type="number" min="0" value={cap2w} onChange={(e) => setCap2w(e.target.value)} className="w-12 h-7 text-[12px] rounded-lg text-center" />
-                      </div>
                     </>
                   )}
                 </div>
@@ -420,8 +427,17 @@ export default function DeviceDetail() {
               </div>
             )}
 
-            {/* Polygon Drawer or placeholder */}
-            {snapshotUrl ? (
+            {/* Detection Frame or Polygon Drawer */}
+            {showDetection && device ? (
+              <div className="rounded-xl overflow-hidden border-2 border-red-200">
+                <img
+                  src={`https://api-minio.projectanddemoserver.com/ai-parking/debug/${device.device_id}/${selectedCamera.position_label}/latest.jpg?t=${Date.now()}`}
+                  alt="Detection view"
+                  className="w-full"
+                  onError={(e) => { (e.target as HTMLImageElement).src = ""; }}
+                />
+              </div>
+            ) : snapshotUrl ? (
               <PolygonDrawer
                 imageUrl={snapshotUrl}
                 existingSlots={drawerSlots}
@@ -618,6 +634,50 @@ export default function DeviceDetail() {
         title="Delete Slot"
         description={`Remove slot "${deletingSlot?.label}"?`}
       />
+
+      {/* Slot Creation Modal */}
+      <CrudDialog
+        open={showSlotModal}
+        onClose={() => { setShowSlotModal(false); setPendingPolygon(null); }}
+        title="New Parking Slot"
+        maxWidth="380px"
+      >
+        <div className="space-y-4 mt-3">
+          <div>
+            <Label className="text-[12px]">Label</Label>
+            <Input value={nextLabel} onChange={(e) => setNextLabel(e.target.value)} className="mt-1.5 h-9 rounded-lg text-[13px]" placeholder="A-01" />
+          </div>
+          <div>
+            <Label className="text-[12px]">Slot Type</Label>
+            <select value={slotType} onChange={(e) => {
+              setSlotType(e.target.value);
+              if (e.target.value === "CAR") { setCapCar("1"); setCap2w("0"); }
+              else if (e.target.value === "TWO_WHEELER") { setCapCar("0"); setCap2w("1"); }
+              else { setCapCar("1"); setCap2w("0"); }
+            }} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 px-3 text-[13px]">
+              <option value="GENERAL">General (Any Vehicle)</option>
+              <option value="CAR">Car</option>
+              <option value="TWO_WHEELER">2-Wheeler</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-[12px]">Car Capacity</Label>
+              <Input type="number" min="0" value={capCar} onChange={(e) => setCapCar(e.target.value)} className="mt-1.5 h-9 rounded-lg text-[13px] text-center" />
+            </div>
+            <div>
+              <Label className="text-[12px]">2W Capacity</Label>
+              <Input type="number" min="0" value={cap2w} onChange={(e) => setCap2w(e.target.value)} className="mt-1.5 h-9 rounded-lg text-[13px] text-center" />
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="outline" onClick={() => { setShowSlotModal(false); setPendingPolygon(null); }} className="h-9 text-[12px]">Cancel</Button>
+            <Button onClick={handleSlotModalSave} disabled={slotModalSaving} className="h-9 text-[12px] bg-teal-600 hover:bg-teal-700">
+              {slotModalSaving ? "Creating..." : "Create Slot"}
+            </Button>
+          </div>
+        </div>
+      </CrudDialog>
     </div>
   );
 }
