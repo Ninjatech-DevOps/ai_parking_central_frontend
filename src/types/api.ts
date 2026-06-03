@@ -164,6 +164,10 @@ export interface ParkingSlot {
   state: "VEHICLE" | "EMPTY" | "OBSTRUCTED";
   slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
   detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
+  capacity_car: number;
+  capacity_two_wheeler: number;
+  occupied_car: number;
+  occupied_two_wheeler: number;
   polygon_coords: string | null;
   pos_x1: number | null;
   pos_y1: number | null;
@@ -198,6 +202,10 @@ export interface CanvasSlot {
   slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
   detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
   is_mismatched: boolean;
+  capacity_car: number;
+  capacity_two_wheeler: number;
+  occupied_car: number;
+  occupied_two_wheeler: number;
   polygon_coords: string | null;
   pos_x1: number | null;
   pos_y1: number | null;

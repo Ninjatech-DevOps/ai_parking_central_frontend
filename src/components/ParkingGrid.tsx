@@ -8,6 +8,10 @@ interface SlotItem {
   slot_type?: string | null;
   detected_vehicle_type?: string | null;
   is_mismatched?: boolean;
+  capacity_car?: number;
+  capacity_two_wheeler?: number;
+  occupied_car?: number;
+  occupied_two_wheeler?: number;
 }
 
 interface Props {
@@ -126,8 +130,41 @@ function SlotIcon({ slot, large }: { slot: SlotItem; large?: boolean }) {
     : <TopDownCar state={slot.state} large={large} mismatched={mm} />;
 }
 
+function isMultiVehicle(slot: SlotItem): boolean {
+  return ((slot.capacity_car || 0) + (slot.capacity_two_wheeler || 0)) > 1;
+}
+
+function OccupancyBadge({ slot, large }: { slot: SlotItem; large?: boolean }) {
+  const capCar = slot.capacity_car || 0;
+  const cap2w = slot.capacity_two_wheeler || 0;
+  const occCar = slot.occupied_car || 0;
+  const occ2w = slot.occupied_two_wheeler || 0;
+  const totalCap = capCar + cap2w;
+  const totalOcc = occCar + occ2w;
+  const fs = large ? 13 : 8;
+
+  const parts: string[] = [];
+  if (capCar > 0 && cap2w > 0) {
+    parts.push(`${occCar}/${capCar}C`);
+    parts.push(`${occ2w}/${cap2w}2W`);
+  } else {
+    parts.push(`${totalOcc}/${totalCap}`);
+  }
+
+  return (
+    <span style={{
+      fontSize: fs, fontWeight: 700, letterSpacing: "0.3px",
+      color: totalOcc >= totalCap ? "#E24B4A" : totalOcc > 0 ? "#EF9F27" : "#97C459",
+      fontFamily: "ui-monospace, monospace",
+    }}>
+      {parts.join(" ")}
+    </span>
+  );
+}
+
 function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem) => void; large?: boolean }) {
   const s = getStyle(slot.state, slot.is_mismatched);
+  const multi = isMultiVehicle(slot);
 
   return (
     <button
@@ -167,10 +204,16 @@ function Bay({ slot, onClick, large }: { slot: SlotItem; onClick?: (s: SlotItem)
       }}>
         {slot.label}
       </span>
-      <SlotIcon slot={slot} large={large} />
+      {multi ? (
+        <OccupancyBadge slot={slot} large={large} />
+      ) : (
+        <SlotIcon slot={slot} large={large} />
+      )}
       {large && (
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.5px", color: s.dot, textTransform: "uppercase" }}>
-          {slot.is_mismatched ? "Mismatched" : slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : (slot.slot_type === "TWO_WHEELER" ? "2W Available" : slot.slot_type === "CAR" ? "Car Available" : "Available")}
+          {multi
+            ? `${(slot.occupied_car || 0) + (slot.occupied_two_wheeler || 0)}/${(slot.capacity_car || 0) + (slot.capacity_two_wheeler || 0)} Occupied`
+            : slot.is_mismatched ? "Mismatched" : slot.state === "VEHICLE" ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2-Wheeler" : slot.detected_vehicle_type === "CAR" ? "Car" : "Occupied") : slot.state === "OBSTRUCTED" ? "Blocked" : (slot.slot_type === "TWO_WHEELER" ? "2W Available" : slot.slot_type === "CAR" ? "Car Available" : "Available")}
         </span>
       )}
     </button>
@@ -202,14 +245,21 @@ export default function ParkingGrid({ slots, cameraLabel, locationName, onSlotCl
   const cols = colsProp || Math.min(5, Math.max(2, slots.length));
 
   const summary = useMemo(() => {
-    const s = { EMPTY: 0, VEHICLE: 0, OBSTRUCTED: 0, MISMATCHED: 0 };
+    const s = { TOTAL_CAPACITY: 0, TOTAL_OCCUPIED: 0, EMPTY: 0, VEHICLE: 0, OBSTRUCTED: 0, MISMATCHED: 0 };
     for (const slot of slots) {
+      const cap = (slot.capacity_car || 0) + (slot.capacity_two_wheeler || 0);
+      const occ = (slot.occupied_car || 0) + (slot.occupied_two_wheeler || 0);
+      // Use capacity-based counting: each slot contributes its capacity to total, occupied to occupied
+      s.TOTAL_CAPACITY += cap || 1; // fallback 1 for legacy single-vehicle slots
+      s.TOTAL_OCCUPIED += cap > 1 ? occ : (slot.state === "VEHICLE" ? 1 : 0);
       if (slot.is_mismatched) {
         s.MISMATCHED += 1;
-      } else {
-        s[slot.state as keyof typeof s] = (s[slot.state as keyof typeof s] || 0) + 1;
+      } else if (slot.state === "OBSTRUCTED") {
+        s.OBSTRUCTED += 1;
       }
     }
+    s.VEHICLE = s.TOTAL_OCCUPIED;
+    s.EMPTY = s.TOTAL_CAPACITY - s.TOTAL_OCCUPIED - s.OBSTRUCTED;
     return s;
   }, [slots]);
 
@@ -357,9 +407,9 @@ export default function ParkingGrid({ slots, cameraLabel, locationName, onSlotCl
         gap: 8, marginTop: 10,
       }}>
         {[
-          { label: "TOTAL", value: slots.length, color: "#94a3b8" },
+          { label: "TOTAL", value: summary.TOTAL_CAPACITY, color: "#94a3b8" },
           { label: "AVAILABLE", value: summary.EMPTY, color: "#97C459" },
-          { label: "OCCUPIED", value: summary.VEHICLE, color: "#E24B4A" },
+          { label: "OCCUPIED", value: summary.TOTAL_OCCUPIED, color: "#E24B4A" },
           { label: "OBSTRUCTED", value: summary.OBSTRUCTED, color: "#EF9F27" },
           ...(summary.MISMATCHED > 0 ? [{ label: "MISMATCHED", value: summary.MISMATCHED, color: "#3B82F6" }] : []),
         ].map(({ label, value, color }) => (

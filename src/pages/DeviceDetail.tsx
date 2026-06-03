@@ -45,6 +45,8 @@ export default function DeviceDetail() {
   const [shapeMode, setShapeMode] = useState<"rectangle" | "polygon">("rectangle");
   const [nextLabel, setNextLabel] = useState("A-01");
   const [slotType, setSlotType] = useState("GENERAL");
+  const [capCar, setCapCar] = useState("1");
+  const [cap2w, setCap2w] = useState("0");
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [deletingSlot, setDeletingSlot] = useState<ParkingSlot | null>(null);
@@ -195,7 +197,8 @@ export default function DeviceDetail() {
   // Slot CRUD via polygon drawing
   async function handlePolygonComplete(polygon: number[][]) {
     if (!selectedCamera || !device) return;
-    const createdLabel = nextLabel;
+    const createdLabel = nextLabel.trim();
+    if (!createdLabel) { showError("Enter a slot label before drawing"); return; }
     try {
       await slotsApi.create({
         label: createdLabel,
@@ -203,6 +206,8 @@ export default function DeviceDetail() {
         camera_id: selectedCamera.id,
         polygon_coords: JSON.stringify(polygon),
         slot_type: slotType,
+        capacity_car: parseInt(capCar) || 0,
+        capacity_two_wheeler: parseInt(cap2w) || 0,
       });
       showSuccess(`Slot ${createdLabel} created`);
       // Auto-increment: "B11" → "B12", "A-01" → "A-02", "Slot 5" → "Slot 6"
@@ -266,8 +271,10 @@ export default function DeviceDetail() {
   const isOnline = device?.status === "ONLINE";
   const isMismatch = (s: any) => s.state === "VEHICLE" && s.slot_type && s.slot_type !== "GENERAL" && s.detected_vehicle_type != null && s.detected_vehicle_type !== s.slot_type;
   const mismatched = slots.filter(isMismatch).length;
-  const vehicle = slots.filter((s) => s.state === "VEHICLE").length - mismatched;
-  const empty = slots.filter((s) => s.state === "EMPTY").length;
+  const totalCapacity = slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0);
+  const totalOccupied = slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0);
+  const vehicle = totalOccupied;
+  const empty = totalCapacity - totalOccupied;
   const obstructed = slots.filter((s) => s.state === "OBSTRUCTED").length;
 
   if (!device) return null;
@@ -394,6 +401,14 @@ export default function DeviceDetail() {
                           <option value="TWO_WHEELER">2-Wheeler</option>
                         </select>
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 font-medium">Car:</span>
+                        <Input type="number" min="0" value={capCar} onChange={(e) => setCapCar(e.target.value)} className="w-12 h-7 text-[12px] rounded-lg text-center" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 font-medium">2W:</span>
+                        <Input type="number" min="0" value={cap2w} onChange={(e) => setCap2w(e.target.value)} className="w-12 h-7 text-[12px] rounded-lg text-center" />
+                      </div>
                     </>
                   )}
                 </div>
@@ -446,7 +461,7 @@ export default function DeviceDetail() {
               <h2 className="text-[14px] font-bold text-slate-900">Slots ({slots.length})</h2>
               {slots.length > 0 && (
                 <span className={`text-[10px] font-bold rounded-lg px-2 py-1 ${vehicle > 0 ? "text-red-700 bg-red-50" : "text-emerald-700 bg-emerald-50"}`}>
-                  {vehicle}/{slots.length} occupied
+                  {vehicle}/{totalCapacity} occupied
                 </span>
               )}
             </div>
@@ -462,7 +477,18 @@ export default function DeviceDetail() {
                 return (
                   <div key={s.id} className={`rounded-xl border ${sc.border} ${sc.bg} p-3`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[13px] font-bold text-slate-800">{s.label} {s.slot_type && s.slot_type !== "GENERAL" && <span className="text-[9px] font-medium text-slate-400">({s.slot_type === "TWO_WHEELER" ? "2W" : "Car"})</span>}</span>
+                      <input
+                        defaultValue={s.label}
+                        onBlur={async (e) => {
+                          const val = e.target.value.trim();
+                          if (val && val !== s.label) {
+                            try { await slotsApi.update(s.id, { label: val }); if (selectedCamera) fetchSlotsForCamera(selectedCamera.id, false); }
+                            catch { showError("Failed to update label"); e.target.value = s.label; }
+                          } else { e.target.value = s.label; }
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        className="text-[13px] font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-20"
+                      />
                       <span className={`text-[10px] font-bold ${sc.color}`}>{s.state === "VEHICLE" && s.detected_vehicle_type ? (s.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "CAR") : s.state}</span>
                     </div>
                     <div className="mb-2">
@@ -480,6 +506,26 @@ export default function DeviceDetail() {
                         <option value="CAR">Car</option>
                         <option value="TWO_WHEELER">2-Wheeler</option>
                       </select>
+                    </div>
+                    <div className="flex gap-2 mb-2">
+                      <div className="flex-1">
+                        <label className="text-[9px] font-semibold text-slate-400">Car Cap</label>
+                        <input type="number" min="0" value={s.capacity_car ?? 0}
+                          onChange={async (e) => {
+                            try { await slotsApi.update(s.id, { capacity_car: parseInt(e.target.value) || 0 }); if (selectedCamera) fetchSlotsForCamera(selectedCamera.id, false); }
+                            catch { showError("Failed to update"); }
+                          }}
+                          className="w-full h-6 rounded-md border border-slate-200 bg-white/80 px-2 text-[10px] font-medium text-center" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[9px] font-semibold text-slate-400">2W Cap</label>
+                        <input type="number" min="0" value={s.capacity_two_wheeler ?? 0}
+                          onChange={async (e) => {
+                            try { await slotsApi.update(s.id, { capacity_two_wheeler: parseInt(e.target.value) || 0 }); if (selectedCamera) fetchSlotsForCamera(selectedCamera.id, false); }
+                            catch { showError("Failed to update"); }
+                          }}
+                          className="w-full h-6 rounded-md border border-slate-200 bg-white/80 px-2 text-[10px] font-medium text-center" />
+                      </div>
                     </div>
                     <div className="flex gap-1.5">
                       <Button

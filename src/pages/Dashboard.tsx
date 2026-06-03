@@ -7,7 +7,7 @@ import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
 import {
   MapPin, ParkingSquare, Wifi, WifiOff,
-  RefreshCw, Camera, CircleCheck, Car, Ban,
+  RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
   Eye, Image as ImageIcon, Loader2,
 } from "lucide-react";
 import type { Device, Location, CanvasResponse, CanvasCamera } from "@/types/api";
@@ -65,20 +65,30 @@ export default function Dashboard() {
   const offline = devices.filter((d) => d.status === "OFFLINE").length;
   const totalCameras = canvasData.reduce((sum, c) => sum + c.cameras.length, 0);
   const allSlots = canvasData.flatMap((c) => c.cameras.flatMap((cam) => cam.slots));
-  const totalSlots = allSlots.length;
-  const slotsAvailable = allSlots.filter((s) => s.state === "EMPTY").length;
-  const slotsOccupied = allSlots.filter((s) => s.state === "VEHICLE").length;
+  const totalSlots = allSlots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0);
+  const totalCapCar = allSlots.reduce((sum, s) => sum + (s.capacity_car || 0), 0);
+  const totalCap2w = allSlots.reduce((sum, s) => sum + (s.capacity_two_wheeler || 0), 0);
+  const occCar = allSlots.reduce((sum, s) => sum + (s.occupied_car || 0), 0);
+  const occ2w = allSlots.reduce((sum, s) => sum + (s.occupied_two_wheeler || 0), 0);
+  const slotsOccupied = occCar + occ2w;
   const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED").length;
-  // const slotsMismatched = allSlots.filter((s) => s.is_mismatched).length;
+  const slotsAvailable = totalSlots - slotsOccupied - slotsObstructed;
+  const availCar = Math.max(0, totalCapCar - occCar);
+  const avail2w = Math.max(0, totalCap2w - occ2w);
 
   // Flatten cameras with location info for table
   const cameraRows = canvasData.flatMap((loc) =>
     loc.cameras.map((cam) => {
-      const available = cam.slots.filter((s) => s.state === "EMPTY").length;
-      const occupied = cam.slots.filter((s) => s.state === "VEHICLE").length;
+      const total = cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0);
+      const occupied = cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0);
       const obstructed = cam.slots.filter((s) => s.state === "OBSTRUCTED").length;
+      const available = total - occupied - obstructed;
       const mismatched = cam.slots.filter((s) => s.is_mismatched).length;
-      return { cam, locName: loc.location_name, locId: loc.location_id, total: cam.slots.length, available, occupied, obstructed, mismatched };
+      const capCar = cam.slots.reduce((s, sl) => s + (sl.capacity_car || 0), 0);
+      const cap2w = cam.slots.reduce((s, sl) => s + (sl.capacity_two_wheeler || 0), 0);
+      const occCar = cam.slots.reduce((s, sl) => s + (sl.occupied_car || 0), 0);
+      const occ2w = cam.slots.reduce((s, sl) => s + (sl.occupied_two_wheeler || 0), 0);
+      return { cam, locName: loc.location_name, locId: loc.location_id, total, available, occupied, obstructed, mismatched, capCar, cap2w, occCar, occ2w };
     })
   );
 
@@ -112,14 +122,16 @@ export default function Dashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
-        <StatCard label="Parking Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-8">
+        <StatCard label="Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
         <StatCard label="Cameras" value={totalCameras} icon={Camera} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="Online" value={online} icon={Wifi} bg="bg-emerald-50" text="text-emerald-600" />
-        <StatCard label="Offline" value={offline} icon={WifiOff} bg="bg-red-50" text="text-red-500" />
-        <StatCard label="Total Slots" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
+        <StatCard label="Total Capacity" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
         <StatCard label="Available" value={slotsAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
         <StatCard label="Occupied" value={slotsOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Cars" value={`${occCar}/${totalCapCar}`} icon={Car} bg="bg-blue-50" text="text-blue-600" />
+        <StatCard label="Cars Free" value={availCar} icon={CircleCheck} bg="bg-blue-50" text="text-blue-500" />
+        <StatCard label="2-Wheelers" value={`${occ2w}/${totalCap2w}`} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
+        <StatCard label="2W Free" value={avail2w} icon={CircleCheck} bg="bg-indigo-50" text="text-indigo-500" />
         <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
@@ -149,14 +161,15 @@ export default function Dashboard() {
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Occupied</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Cars</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Obstructed</th>
-                  {/* <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mismatched</th> */}
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {cameraRows.map(({ cam, locName, total, available, occupied, obstructed /* , mismatched */ }, idx) => {
+                {cameraRows.map(({ cam, locName, total, available, occupied, obstructed, capCar, cap2w, occCar, occ2w }, idx) => {
                   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
                   return (
                     <tr key={cam.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
@@ -184,6 +197,12 @@ export default function Dashboard() {
                       </td>
                       <td className="px-3 py-4 text-center">
                         <span className="text-[18px] font-bold text-red-500">{occupied}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className={`text-[14px] font-bold ${occCar > 0 ? "text-blue-600" : "text-slate-300"}`}>{occCar}/{capCar}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className={`text-[14px] font-bold ${occ2w > 0 ? "text-indigo-600" : "text-slate-300"}`}>{occ2w}/{cap2w}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
                         <span className={`text-[18px] font-bold ${obstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{obstructed}</span>
@@ -233,8 +252,9 @@ export default function Dashboard() {
                   <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalSlots}</span></td>
                   <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{slotsAvailable}</span></td>
                   <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{slotsOccupied}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[16px] font-extrabold text-blue-600">{occCar}/{totalCapCar}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[16px] font-extrabold text-indigo-600">{occ2w}/{totalCap2w}</span></td>
                   <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsObstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{slotsObstructed}</span></td>
-                  {/* <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsMismatched > 0 ? "text-blue-500" : "text-slate-300"}`}>{slotsMismatched}</span></td> */}
                   <td className="px-3 py-4 text-center">
                     <span className="text-[13px] font-bold text-slate-500">
                       {totalSlots > 0 ? `${Math.round((slotsOccupied / totalSlots) * 100)}% occupied` : "--"}
@@ -383,9 +403,9 @@ export default function Dashboard() {
         {snapshotCam && (
           <div className="mt-3">
             <div className="flex items-center gap-3 mb-3 px-1">
-              <span className="text-[12px] font-semibold text-slate-500">{snapshotCam.cam.slots.length} slots</span>
-              <span className="text-[12px] font-semibold text-emerald-600">{snapshotCam.cam.slots.filter((s) => s.state === "EMPTY").length} available</span>
-              <span className="text-[12px] font-semibold text-red-500">{snapshotCam.cam.slots.filter((s) => s.state === "VEHICLE").length} occupied</span>
+              <span className="text-[12px] font-semibold text-slate-500">{snapshotCam.cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0)} capacity</span>
+              <span className="text-[12px] font-semibold text-emerald-600">{snapshotCam.cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0) - snapshotCam.cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0)} available</span>
+              <span className="text-[12px] font-semibold text-red-500">{snapshotCam.cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0)} occupied</span>
             </div>
             <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
               {snapshotLoading ? (
@@ -410,7 +430,7 @@ export default function Dashboard() {
 }
 
 
-function StatCard({ label, value, icon: Icon, bg, text }: { label: string; value: number; icon: React.ElementType; bg: string; text: string }) {
+function StatCard({ label, value, icon: Icon, bg, text }: { label: string; value: number | string; icon: React.ElementType; bg: string; text: string }) {
   return (
     <div className="bg-white rounded-2xl card-shadow p-4 flex flex-col items-center text-center transition-lift hover:card-shadow-hover">
       <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-2`}>

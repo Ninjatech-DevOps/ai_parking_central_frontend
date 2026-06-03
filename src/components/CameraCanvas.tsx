@@ -126,7 +126,11 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
 
       ctx.font = "9px Inter, system-ui, sans-serif";
       ctx.fillStyle = color.text;
-      const displayText = isMM ? "MISMATCH"
+      const capTotal = (slot.capacity_car || 0) + (slot.capacity_two_wheeler || 0);
+      const occTotal = (slot.occupied_car || 0) + (slot.occupied_two_wheeler || 0);
+      const isMulti = capTotal > 1;
+      const displayText = isMulti ? `${occTotal}/${capTotal}`
+        : isMM ? "MISMATCH"
         : slot.state === "VEHICLE" && slot.detected_vehicle_type
         ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "CAR")
         : slot.state;
@@ -162,11 +166,12 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
     setHoveredSlot(found || null);
   }
 
-  const carCount = camera.slots.filter((s) => s.state === "VEHICLE" && s.detected_vehicle_type === "CAR").length;
-  const twoWheelerCount = camera.slots.filter((s) => s.state === "VEHICLE" && s.detected_vehicle_type === "TWO_WHEELER").length;
-  const vehicleCount = camera.slots.filter((s) => s.state === "VEHICLE").length;
-  const emptyCount = camera.slots.filter((s) => s.state === "EMPTY").length;
+  const totalCapacity = camera.slots.reduce((sum, s) => sum + (s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1, 0);
+  const totalOccCar = camera.slots.reduce((sum, s) => sum + (s.occupied_car || 0), 0);
+  const totalOcc2w = camera.slots.reduce((sum, s) => sum + (s.occupied_two_wheeler || 0), 0);
+  const totalOccupied = totalOccCar + totalOcc2w;
   const obstructedCount = camera.slots.filter((s) => s.state === "OBSTRUCTED").length;
+  const emptyCount = totalCapacity - totalOccupied - obstructedCount;
   const isLight = theme === "light";
 
   return (
@@ -195,20 +200,24 @@ export default function CameraCanvas({ camera, theme = "light" }: Props) {
             style={{ left: mousePos.x + 12, top: mousePos.y - 30 }}
           >
             <p className="font-bold">{hoveredSlot.label} <span className="font-normal opacity-60">({hoveredSlot.slot_type === "TWO_WHEELER" ? "2W" : hoveredSlot.slot_type === "CAR" ? "Car" : "General"})</span></p>
-            <p className={`${
-              hoveredSlot.is_mismatched ? "text-blue-300" :
-              hoveredSlot.state === "VEHICLE" ? "text-red-300" :
-              hoveredSlot.state === "EMPTY" ? "text-green-300" : "text-amber-300"
-            }`}>{hoveredSlot.is_mismatched ? "MISMATCHED" : hoveredSlot.state}{hoveredSlot.state === "VEHICLE" && hoveredSlot.detected_vehicle_type ? ` (${hoveredSlot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car"})` : ""}</p>
+            {(() => {
+              const hCap = (hoveredSlot.capacity_car || 0) + (hoveredSlot.capacity_two_wheeler || 0);
+              const hOcc = (hoveredSlot.occupied_car || 0) + (hoveredSlot.occupied_two_wheeler || 0);
+              if (hCap > 1) return <p className={hOcc >= hCap ? "text-red-300" : hOcc > 0 ? "text-amber-300" : "text-green-300"}>{hOcc}/{hCap} occupied</p>;
+              return <p className={`${
+                hoveredSlot.is_mismatched ? "text-blue-300" :
+                hoveredSlot.state === "VEHICLE" ? "text-red-300" :
+                hoveredSlot.state === "EMPTY" ? "text-green-300" : "text-amber-300"
+              }`}>{hoveredSlot.is_mismatched ? "MISMATCHED" : hoveredSlot.state}{hoveredSlot.state === "VEHICLE" && hoveredSlot.detected_vehicle_type ? ` (${hoveredSlot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car"})` : ""}</p>;
+            })()}
           </div>
         )}
       </div>
 
       <div className="px-4 py-2.5 border-t border-slate-100 flex items-center gap-4 text-[11px]">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Empty: {emptyCount}</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Car: {carCount}</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-400" /> 2W: {twoWheelerCount}</span>
-        {vehicleCount > carCount + twoWheelerCount && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Other: {vehicleCount - carCount - twoWheelerCount}</span>}
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Available: {emptyCount}</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Car: {totalOccCar}</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-400" /> 2W: {totalOcc2w}</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500" /> Obstructed: {obstructedCount}</span>
       </div>
     </div>

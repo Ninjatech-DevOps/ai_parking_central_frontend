@@ -51,6 +51,8 @@ export default function ParkingLotDetail() {
   const [formParentId, setFormParentId] = useState("");
   const [formDeviceId, setFormDeviceId] = useState("");
   const [formSlotType, setFormSlotType] = useState("GENERAL");
+  const [formCapCar, setFormCapCar] = useState("1");
+  const [formCap2w, setFormCap2w] = useState("0");
   const [formSaving, setFormSaving] = useState(false);
   const [deleting, setDeleting] = useState<{ id: string; name: string; type: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -149,8 +151,13 @@ export default function ParkingLotDetail() {
   async function handleSlotSubmit(e: FormEvent) {
     e.preventDefault(); setFormSaving(true);
     try {
-      if (editingId) await slotsApi.update(editingId, { label: formName, slot_type: formSlotType });
-      else await slotsApi.create({ label: formName, zone_id: formParentId, slot_type: formSlotType });
+      const slotData = {
+        label: formName, slot_type: formSlotType,
+        capacity_car: parseInt(formCapCar) || 0,
+        capacity_two_wheeler: parseInt(formCap2w) || 0,
+      };
+      if (editingId) await slotsApi.update(editingId, slotData);
+      else await slotsApi.create({ ...slotData, zone_id: formParentId });
       setShowSlotForm(false);
       if (expandedZone) slotsApi.list(`zone_id=${expandedZone}&page_size=200`).then(({ data }) => setSlots((p) => ({ ...p, [expandedZone!]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
@@ -181,13 +188,14 @@ export default function ParkingLotDetail() {
   function openEditFloor(f: Floor) { setEditingId(f.id); setFormName(f.label); setFormLevel(f.level_number.toString()); setFormCapacity(f.capacity.toString()); setShowFloorForm(true); }
   function openAddZone(floorId: string) { setEditingId(null); setFormParentId(floorId); setFormName(""); setFormCapacity(""); setShowZoneForm(true); }
   function openEditZone(z: Zone) { setEditingId(z.id); setFormName(z.name); setFormCapacity(z.capacity.toString()); setShowZoneForm(true); }
-  function openAddSlot(zoneId: string) { setEditingId(null); setFormParentId(zoneId); setFormName(""); setFormSlotType("GENERAL"); setShowSlotForm(true); }
+  function openAddSlot(zoneId: string) { setEditingId(null); setFormParentId(zoneId); setFormName(""); setFormSlotType("GENERAL"); setFormCapCar("1"); setFormCap2w("0"); setShowSlotForm(true); }
+  function openEditSlot(s: ParkingSlot) { setEditingId(s.id); setFormName(s.label); setFormSlotType(s.slot_type); setFormCapCar((s.capacity_car || 0).toString()); setFormCap2w((s.capacity_two_wheeler || 0).toString()); setShowSlotForm(true); }
   function openAddCamera(deviceId: string) { setEditingId(null); setFormDeviceId(deviceId); setFormName(""); setShowCameraForm(true); }
 
   if (!location) return <div className="p-8 text-slate-400">Loading...</div>;
 
-  const totalSlots = canvas?.cameras.reduce((s, c) => s + c.slots.length, 0) || 0;
-  const vehicleSlots = canvas?.cameras.reduce((s, c) => s + c.slots.filter((x) => x.state === "VEHICLE").length, 0) || 0;
+  const totalSlots = canvas?.cameras.reduce((s, c) => s + c.slots.reduce((sum, x) => sum + ((x.capacity_car || 0) + (x.capacity_two_wheeler || 0) || 1), 0), 0) || 0;
+  const vehicleSlots = canvas?.cameras.reduce((s, c) => s + c.slots.reduce((sum, x) => sum + (x.occupied_car || 0) + (x.occupied_two_wheeler || 0), 0), 0) || 0;
   const emptySlots = canvas?.cameras.reduce((s, c) => s + c.slots.filter((x) => x.state === "EMPTY").length, 0) || 0;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -309,7 +317,9 @@ export default function ParkingLotDetail() {
                                               {slot.label}
                                               <span className="text-[9px] opacity-70">{slot.state === "VEHICLE" && slot.detected_vehicle_type ? (slot.detected_vehicle_type === "TWO_WHEELER" ? "2W" : "Car") : slot.state}</span>
                                               <span className="text-[8px] opacity-50">{slot.slot_type === "TWO_WHEELER" ? "2W" : slot.slot_type === "CAR" ? "Car" : "Gen"}</span>
+                                              <span className="text-[8px] opacity-50">cap: {(slot.capacity_car || 0) + (slot.capacity_two_wheeler || 0)}</span>
                                               {slot.camera_id && <Camera size={9} className="opacity-50" />}
+                                              <button onClick={() => openEditSlot(slot)} className="hover:text-teal-600 opacity-40 hover:opacity-100"><Pencil size={10} /></button>
                                               <button onClick={() => setDeleting({ id: slot.id, name: slot.label, type: "slot" })} className="hover:text-red-600 opacity-40 hover:opacity-100"><Trash2 size={10} /></button>
                                             </div>
                                           ))}
@@ -502,7 +512,7 @@ export default function ParkingLotDetail() {
         </form>
       </CrudDialog>
 
-      <CrudDialog open={showSlotForm} onClose={() => setShowSlotForm(false)} title="Add Slot">
+      <CrudDialog open={showSlotForm} onClose={() => setShowSlotForm(false)} title={editingId ? "Edit Slot" : "Add Slot"}>
         <form onSubmit={handleSlotSubmit} className="space-y-4 mt-3">
           <div><Label className="text-[13px]">Slot Label</Label><Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="A-01, B-05..." className="mt-1.5 h-9 rounded-lg text-[13px]" required /></div>
           <div><Label className="text-[13px]">Slot Type</Label>
@@ -512,9 +522,13 @@ export default function ParkingLotDetail() {
               <option value="TWO_WHEELER">Two Wheeler</option>
             </select>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label className="text-[13px]">Car Capacity</Label><Input type="number" min="0" value={formCapCar} onChange={(e) => setFormCapCar(e.target.value)} className="mt-1.5 h-9 rounded-lg text-[13px]" /></div>
+            <div><Label className="text-[13px]">2-Wheeler Capacity</Label><Input type="number" min="0" value={formCap2w} onChange={(e) => setFormCap2w(e.target.value)} className="mt-1.5 h-9 rounded-lg text-[13px]" /></div>
+          </div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
             <Button type="button" variant="ghost" onClick={() => setShowSlotForm(false)} className="rounded-lg text-[13px]">Cancel</Button>
-            <Button type="submit" disabled={formSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">{formSaving ? "Saving..." : "Create"}</Button>
+            <Button type="submit" disabled={formSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">{formSaving ? "Saving..." : editingId ? "Update" : "Create"}</Button>
           </div>
         </form>
       </CrudDialog>

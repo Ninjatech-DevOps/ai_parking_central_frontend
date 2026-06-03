@@ -46,8 +46,8 @@ export default function Locations() {
   const [formSaving, setFormSaving] = useState(false);
 
   // Load all lookup data for name resolution + form
-  const [allTalukas, setAllTalukas] = useState<Taluka[]>([]);
-  const [allVillages, setAllVillages] = useState<Village[]>([]);
+  const [_allTalukas, setAllTalukas] = useState<Taluka[]>([]);
+  const [_allVillages, setAllVillages] = useState<Village[]>([]);
   const [allAreas, setAllAreas] = useState<Area[]>([]);
 
   useEffect(() => {
