@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Monitor, Bell, Users, Settings, ParkingSquare,
-  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2,
+  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2, Download,
 } from "lucide-react";
 
 interface NavItemConfig {
@@ -36,6 +36,7 @@ const sections: SectionConfig[] = [
     label: "Device Mgmt",
     items: [
       { to: "/devices", label: "Devices", icon: Monitor, permissions: ["devices:view"] },
+      { to: "/ota-updates", label: "OTA Updates", icon: Download, permissions: ["devices:update"] },
     ],
   },
   {

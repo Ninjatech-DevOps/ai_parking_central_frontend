@@ -163,7 +163,18 @@ export const commandsApi = {
   list: (params?: string) => api.get<PaginatedResponse<DeviceCommand>>(`/device-commands?${params || ""}`),
   send: (d: Record<string, unknown>) => api.post<DeviceCommand>("/device-commands", d),
   restart: (deviceId: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/restart`),
-  updateDevice: (deviceId: string, image: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/update?image=${image}`),
+  updateDevice: (deviceId: string, branch?: string, commit?: string) => {
+    const params = new URLSearchParams();
+    if (branch) params.set("branch", branch);
+    if (commit) params.set("commit", commit);
+    const qs = params.toString();
+    return api.post<DeviceCommand>(`/device-commands/${deviceId}/update${qs ? `?${qs}` : ""}`);
+  },
+  rollback: (deviceId: string, commit?: string) => {
+    const qs = commit ? `?commit=${commit}` : "";
+    return api.post<DeviceCommand>(`/device-commands/${deviceId}/rollback${qs}`);
+  },
+  version: (deviceId: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/version`),
   snapshot: (deviceId: string) => api.post<DeviceCommand>(`/device-commands/${deviceId}/snapshot`),
   history: (deviceId: string, limit = 20) => api.get<DeviceCommand[]>(`/device-commands/${deviceId}/history?limit=${limit}`),
   status: (commandId: string) => api.get<DeviceCommand>(`/device-commands/status/${commandId}`),

@@ -18,6 +18,7 @@ import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
 import ParkingHistory from "@/pages/ParkingHistory";
 import SharedLinks from "@/pages/SharedLinks";
+import OTAUpdates from "@/pages/OTAUpdates";
 import PublicView from "@/pages/PublicView";
 import { Toaster } from "sonner";
 import "./index.css";
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="/parking-lots/:id" element={<ParkingLotDetail />} />
         <Route path="/devices" element={<Devices />} />
         <Route path="/devices/:id" element={<DeviceDetail />} />
+        <Route path="/ota-updates" element={<OTAUpdates />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/parking-history" element={<ParkingHistory />} />
         <Route path="/users" element={<Users />} />
