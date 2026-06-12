@@ -1,19 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { ParkingSquare, AlertTriangle, CircleDot, LayoutGrid, Map } from "lucide-react";
-import CameraCanvas from "@/components/CameraCanvas";
-import ParkingGrid from "@/components/ParkingGrid";
+import { ParkingSquare, AlertTriangle, CircleDot } from "lucide-react";
 import { publicViewApi } from "@/services/api";
 import type { PublicViewResponse } from "@/types/api";
-
-type ViewMode = "grid" | "canvas";
 
 export default function PublicView() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<PublicViewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -90,30 +85,6 @@ export default function PublicView() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* View toggle */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                  viewMode === "grid"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                <LayoutGrid size={13} /> Grid
-              </button>
-              <button
-                onClick={() => setViewMode("canvas")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                  viewMode === "canvas"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                <Map size={13} /> Canvas
-              </button>
-            </div>
-
             {/* Summary badges */}
             <div className="hidden sm:flex items-center gap-3 text-[12px] font-semibold">
               <span className="flex items-center gap-1.5 text-slate-600">
@@ -181,24 +152,71 @@ export default function PublicView() {
               </div>
             )}
 
-            {viewMode === "grid" ? (
-              <div className={`grid gap-6 ${location.cameras.length === 1 ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"}`}>
-                {location.cameras.map((cam) => (
-                  <ParkingGrid
-                    key={cam.id}
-                    slots={cam.slots}
-                    cameraLabel={cam.position_label}
-                    locationName={data.locations.length > 1 ? undefined : location.name}
-                  />
-                ))}
+            <div className="space-y-6">
+                {location.cameras.map((cam) => {
+                  const camOccCar = cam.slots.reduce((s, sl) => s + (sl.occupied_car || 0), 0);
+                  const camOcc2w = cam.slots.reduce((s, sl) => s + (sl.occupied_two_wheeler || 0), 0);
+                  const camCapCar = cam.slots.reduce((s, sl) => s + (sl.capacity_car || 0), 0);
+                  const camCap2w = cam.slots.reduce((s, sl) => s + (sl.capacity_two_wheeler || 0), 0);
+                  const availCar = camCapCar - camOccCar;
+                  const avail2w = camCap2w - camOcc2w;
+
+                  return (
+                    <div key={cam.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
+                      {/* Camera header */}
+                      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ParkingSquare size={16} className="text-teal-600" />
+                          <h3 className="text-[14px] font-bold text-slate-900">{cam.position_label}</h3>
+                          {location.name && (
+                            <span className="text-[11px] text-slate-400 font-medium">{location.name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Image 80% + Stats 20% */}
+                      <div className="flex">
+                        {/* Detection image */}
+                        <div className="w-4/5">
+                          {cam.debug_frame_url ? (
+                            <div className="bg-slate-900 h-full flex items-center justify-center">
+                              <img
+                                src={cam.debug_frame_url}
+                                alt={`${cam.position_label} detection`}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <div className="bg-slate-900 flex items-center justify-center h-full min-h-[300px]">
+                              <p className="text-slate-500 text-[12px]">No detection image available</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Stats column */}
+                        <div className="w-1/5 flex flex-col gap-2 p-3">
+                          <div className="bg-slate-50 rounded-xl p-3 text-center flex-1 flex flex-col items-center justify-center">
+                            <p className="text-[28px] font-bold text-red-600 leading-tight">{camOccCar}<span className="text-[14px] text-slate-400">/{camCapCar}</span></p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Cars</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center flex-1 flex flex-col items-center justify-center">
+                            <p className="text-[28px] font-bold text-emerald-600 leading-tight">{availCar}</p>
+                            <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1">Available Cars</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-3 text-center flex-1 flex flex-col items-center justify-center">
+                            <p className="text-[28px] font-bold text-blue-600 leading-tight">{camOcc2w}<span className="text-[14px] text-slate-400">/{camCap2w}</span></p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">2-Wheelers</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center flex-1 flex flex-col items-center justify-center">
+                            <p className="text-[28px] font-bold text-emerald-600 leading-tight">{avail2w}</p>
+                            <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1">Available 2W</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              <div className={`grid gap-4 ${location.cameras.length === 1 ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"}`}>
-                {location.cameras.map((cam) => (
-                  <CameraCanvas key={cam.id} camera={cam} theme="light" />
-                ))}
-              </div>
-            )}
           </section>
         ))}
 
