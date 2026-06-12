@@ -6,7 +6,7 @@ import { devicesApi, locationsApi, camerasApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
 import {
-  MapPin, ParkingSquare, Wifi, WifiOff,
+  MapPin, ParkingSquare,
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
   Eye, Image as ImageIcon, Loader2,
 } from "lucide-react";
