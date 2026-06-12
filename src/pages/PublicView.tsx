@@ -181,7 +181,7 @@ export default function PublicView() {
                           {cam.debug_frame_url ? (
                             <div className="bg-slate-900 h-full flex items-center justify-center">
                               <img
-                                src={cam.debug_frame_url}
+                                src={`${cam.debug_frame_url}?t=${Date.now()}`}
                                 alt={`${cam.position_label} detection`}
                                 className="w-full h-full object-contain"
                               />
