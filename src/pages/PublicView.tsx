@@ -1,122 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { ParkingSquare, AlertTriangle, Car, Bike, Eye, Bug } from "lucide-react";
 import { publicViewApi } from "@/services/api";
-import type { PublicViewResponse, CanvasCamera } from "@/types/api";
+import type { PublicViewResponse } from "@/types/api";
 
 const IS_DEV = import.meta.env.DEV;
-
-/** Overlay canvas that draws red stroke-only polygons on top of the camera image */
-function CameraImageOverlay({ cam, showDebug }: { cam: CanvasCamera; showDebug: boolean }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  const imgSrc = showDebug
-    ? (cam.debug_frame_url || cam.clean_frame_url)
-    : (cam.clean_frame_url || cam.debug_frame_url);
-
-  const drawOverlay = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img = imgRef.current;
-    const container = containerRef.current;
-    if (!canvas || !img || !container) return;
-
-    // Don't draw polygons on debug frame — it already has them
-    if (showDebug) {
-      canvas.width = 0;
-      canvas.height = 0;
-      return;
-    }
-
-    const displayW = img.clientWidth;
-    const displayH = img.clientHeight;
-    if (!displayW || !displayH) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.style.width = `${displayW}px`;
-    canvas.style.height = `${displayH}px`;
-    canvas.width = displayW * dpr;
-    canvas.height = displayH * dpr;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, displayW, displayH);
-
-    const frameW = cam.frame_width || img.naturalWidth || 1920;
-    const frameH = cam.frame_height || img.naturalHeight || 1080;
-    const scaleX = displayW / frameW;
-    const scaleY = displayH / frameH;
-
-    for (const slot of cam.slots) {
-      let points: number[][] = [];
-      if (slot.polygon_coords) {
-        try { points = JSON.parse(slot.polygon_coords); } catch { /* skip */ }
-      }
-      if (points.length === 0 && slot.pos_x1 != null && slot.pos_x2 != null) {
-        points = [
-          [slot.pos_x1!, slot.pos_y1!],
-          [slot.pos_x2!, slot.pos_y1!],
-          [slot.pos_x2!, slot.pos_y2!],
-          [slot.pos_x1!, slot.pos_y2!],
-        ];
-      }
-      if (points.length < 3) continue;
-
-      const pts = points.map(([px, py]) => [px * scaleX, py * scaleY]);
-
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.closePath();
-
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw slot label at centroid
-      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-      ctx.font = "bold 12px Inter, system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillText(slot.label, cx + 1, cy + 1);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(slot.label, cx, cy);
-    }
-  }, [cam, showDebug]);
-
-  useEffect(() => {
-    drawOverlay();
-    window.addEventListener("resize", drawOverlay);
-    return () => window.removeEventListener("resize", drawOverlay);
-  }, [drawOverlay]);
-
-  return (
-    <div ref={containerRef} className="relative w-full h-full flex items-center justify-center">
-      {imgSrc ? (
-        <>
-          <img
-            ref={imgRef}
-            src={`${imgSrc}?t=${Date.now()}`}
-            alt={cam.position_label}
-            className="w-full h-full object-contain"
-            onLoad={drawOverlay}
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute top-0 left-0 pointer-events-none"
-            style={{ objectFit: "contain" }}
-          />
-        </>
-      ) : (
-        <p className="text-slate-500 text-[12px]">No image available</p>
-      )}
-    </div>
-  );
-}
 
 export default function PublicView() {
   const { token } = useParams<{ token: string }>();
@@ -278,8 +166,21 @@ export default function PublicView() {
                       {/* Image 80% + Stats 20% */}
                       <div className="flex" style={{ height: "calc(100vh - 180px)", maxHeight: 600 }}>
                         {/* Image — fixed height, no scroll */}
-                        <div className="w-4/5 bg-slate-900 relative">
-                          <CameraImageOverlay cam={cam} showDebug={showDebug} />
+                        <div className="w-4/5 bg-slate-900 relative flex items-center justify-center">
+                          {(() => {
+                            const imgSrc = showDebug
+                              ? (cam.debug_frame_url || cam.clean_frame_url)
+                              : (cam.clean_frame_url || cam.debug_frame_url);
+                            return imgSrc ? (
+                              <img
+                                src={`${imgSrc}?t=${Date.now()}`}
+                                alt={cam.position_label}
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <p className="text-slate-500 text-[12px]">No image available</p>
+                            );
+                          })()}
                           {IS_DEV && (
                             <button
                               onClick={() => setShowDebug((v) => !v)}
