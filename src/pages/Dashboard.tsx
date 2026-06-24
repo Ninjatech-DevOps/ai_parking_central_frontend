@@ -72,7 +72,7 @@ export default function Dashboard() {
   const occ2w = allSlots.reduce((sum, s) => sum + (s.occupied_two_wheeler || 0), 0);
   const slotsOccupied = occCar + occ2w;
   const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED").length;
-  const slotsAvailable = totalSlots - slotsOccupied - slotsObstructed;
+  const slotsAvailable = Math.max(0, totalSlots - slotsOccupied - slotsObstructed);
   const availCar = Math.max(0, totalCapCar - occCar);
   const avail2w = Math.max(0, totalCap2w - occ2w);
 
@@ -82,7 +82,7 @@ export default function Dashboard() {
       const total = cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0);
       const occupied = cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0);
       const obstructed = cam.slots.filter((s) => s.state === "OBSTRUCTED").length;
-      const available = total - occupied - obstructed;
+      const available = Math.max(0, total - occupied - obstructed);
       const mismatched = cam.slots.filter((s) => s.is_mismatched).length;
       const capCar = cam.slots.reduce((s, sl) => s + (sl.capacity_car || 0), 0);
       const cap2w = cam.slots.reduce((s, sl) => s + (sl.capacity_two_wheeler || 0), 0);
@@ -129,9 +129,9 @@ export default function Dashboard() {
         <StatCard label="Available" value={slotsAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
         <StatCard label="Occupied" value={slotsOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
         <StatCard label="Cars" value={`${occCar}/${totalCapCar}`} icon={Car} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="Cars Free" value={availCar} icon={CircleCheck} bg="bg-blue-50" text="text-blue-500" />
+        <StatCard label="Cars Available" value={availCar} icon={CircleCheck} bg="bg-blue-50" text="text-blue-500" />
         <StatCard label="2-Wheelers" value={`${occ2w}/${totalCap2w}`} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
-        <StatCard label="2W Free" value={avail2w} icon={CircleCheck} bg="bg-indigo-50" text="text-indigo-500" />
+        <StatCard label="2W Available" value={avail2w} icon={CircleCheck} bg="bg-indigo-50" text="text-indigo-500" />
         <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
@@ -226,28 +226,22 @@ export default function Dashboard() {
                       <td className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => handleSnapshot(cam, locName)}
-                            title="Get latest image"
-                            className="w-8 h-8 rounded-lg bg-teal-50 hover:bg-teal-100 flex items-center justify-center transition-colors group"
+                            onClick={() => { setSnapshotCam({ cam, locName }); setSnapshotUrl(cam.debug_frame_url); setSnapshotLoading(false); }}
+                            title="Latest image"
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors group ${cam.debug_frame_url ? "bg-teal-50 hover:bg-teal-100" : "bg-slate-50 cursor-not-allowed"}`}
+                            disabled={!cam.debug_frame_url}
                           >
-                            <ImageIcon size={15} className="text-teal-600 group-hover:text-teal-700" />
+                            <ImageIcon size={15} className={cam.debug_frame_url ? "text-teal-600 group-hover:text-teal-700" : "text-slate-300"} />
                           </button>
                           {cam.debug_frame_url && (
                             <button
-                              onClick={() => { setSnapshotCam({ cam, locName }); setSnapshotUrl(cam.debug_frame_url); setSnapshotLoading(false); }}
-                              title="Detection view (YOLO bboxes)"
+                              onClick={() => handleSnapshot(cam, locName)}
+                              title="Live snapshot"
                               className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors group"
                             >
                               <Eye size={15} className="text-red-500 group-hover:text-red-600" />
                             </button>
                           )}
-                          <button
-                            onClick={() => navigate(`/parking-lots`)}
-                            title="View slots"
-                            className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center transition-colors group"
-                          >
-                            <Eye size={15} className="text-slate-500 group-hover:text-slate-700" />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -411,11 +405,33 @@ export default function Dashboard() {
       >
         {snapshotCam && (
           <div className="mt-3">
-            <div className="flex items-center gap-3 mb-3 px-1">
-              <span className="text-[12px] font-semibold text-slate-500">{snapshotCam.cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0)} capacity</span>
-              <span className="text-[12px] font-semibold text-emerald-600">{snapshotCam.cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0) - snapshotCam.cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0)} available</span>
-              <span className="text-[12px] font-semibold text-red-500">{snapshotCam.cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0)} occupied</span>
-            </div>
+            {(() => {
+              const s = snapshotCam.cam.slots;
+              const capCar = s.reduce((sum, sl) => sum + (sl.capacity_car || 0), 0);
+              const cap2w = s.reduce((sum, sl) => sum + (sl.capacity_two_wheeler || 0), 0);
+              const oCar = s.reduce((sum, sl) => sum + (sl.occupied_car || 0), 0);
+              const o2w = s.reduce((sum, sl) => sum + (sl.occupied_two_wheeler || 0), 0);
+              const aCar = Math.max(0, capCar - oCar);
+              const a2w = Math.max(0, cap2w - o2w);
+              return (
+                <div className="grid grid-cols-2 gap-2 mb-3 px-1">
+                  <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                    <Car size={16} className="text-blue-500" />
+                    <span className="text-[12px] font-bold text-blue-600">Cars</span>
+                    <span className="text-[11px] text-slate-500 ml-auto">Total <b>{capCar}</b></span>
+                    <span className="text-[11px] text-red-500">Occupied <b>{oCar}</b></span>
+                    <span className="text-[11px] text-emerald-600">Available <b>{aCar}</b></span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-indigo-50 rounded-lg px-3 py-2">
+                    <Bike size={16} className="text-indigo-500" />
+                    <span className="text-[12px] font-bold text-indigo-600">2W</span>
+                    <span className="text-[11px] text-slate-500 ml-auto">Total <b>{cap2w}</b></span>
+                    <span className="text-[11px] text-red-500">Occupied <b>{o2w}</b></span>
+                    <span className="text-[11px] text-emerald-600">Available <b>{a2w}</b></span>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
               {snapshotLoading ? (
                 <div className="flex items-center justify-center py-20">
