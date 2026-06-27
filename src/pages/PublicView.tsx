@@ -4,7 +4,6 @@ import { ParkingSquare, AlertTriangle, Car, Bike, Eye, Bug } from "lucide-react"
 import { publicViewApi } from "@/services/api";
 import type { PublicViewResponse } from "@/types/api";
 
-const IS_DEV = import.meta.env.DEV;
 
 export default function PublicView() {
   const { token } = useParams<{ token: string }>();
@@ -94,40 +93,53 @@ export default function PublicView() {
             </div>
           </div>
 
-          {/* Overall car/2W summary */}
-          <div className="hidden sm:flex items-center gap-4 text-[11px] font-semibold">
-            <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-1.5">
-              <Car size={14} className="text-blue-500" />
-              <span className="text-blue-600 font-bold">Cars</span>
-              <span className="text-slate-500">Total <b>{totalCapCar}</b></span>
-              <span className="text-red-500">Occupied <b>{totalOccCar}</b></span>
-              <span className="text-emerald-600">Available <b>{totalAvailCar}</b></span>
-            </div>
-            <div className="flex items-center gap-2 bg-indigo-50 rounded-lg px-3 py-1.5">
-              <Bike size={14} className="text-indigo-500" />
-              <span className="text-indigo-600 font-bold">2W</span>
-              <span className="text-slate-500">Total <b>{totalCap2w}</b></span>
-              <span className="text-red-500">Occupied <b>{totalOcc2w}</b></span>
-              <span className="text-emerald-600">Available <b>{totalAvail2w}</b></span>
-            </div>
-          </div>
         </div>
       </header>
 
-      {/* Mobile summary */}
-      <div className="sm:hidden px-4 pt-3 shrink-0">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white rounded-xl card-shadow p-2.5 flex items-center gap-2">
-            <Car size={14} className="text-blue-500" />
-            <span className="text-[11px] font-bold text-blue-600">Cars</span>
-            <span className="text-[10px] text-slate-500 ml-auto">{totalOccCar}/{totalCapCar}</span>
-            <span className="text-[10px] text-emerald-600">{totalAvailCar} avail</span>
+      {/* Overall summary — table-style stat boxes */}
+      <div className="shrink-0 px-4 sm:px-6 py-3 bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 gap-4">
+          {/* Cars box */}
+          <div className="bg-blue-50 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-center gap-3 py-3 border-b border-blue-100">
+              <Car size={32} className="text-blue-500" />
+              <span className="text-[22px] font-bold text-blue-600">Cars</span>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-blue-100">
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
+                <p className="text-[28px] font-bold text-blue-600 leading-tight">{totalCapCar}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Occupied</p>
+                <p className="text-[28px] font-bold text-red-500 leading-tight">{totalOccCar}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Available</p>
+                <p className="text-[28px] font-bold text-emerald-600 leading-tight">{totalAvailCar}</p>
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-xl card-shadow p-2.5 flex items-center gap-2">
-            <Bike size={14} className="text-indigo-500" />
-            <span className="text-[11px] font-bold text-indigo-600">2W</span>
-            <span className="text-[10px] text-slate-500 ml-auto">{totalOcc2w}/{totalCap2w}</span>
-            <span className="text-[10px] text-emerald-600">{totalAvail2w} avail</span>
+          {/* Two Wheeler box */}
+          <div className="bg-indigo-50 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-center gap-3 py-3 border-b border-indigo-100">
+              <Bike size={32} className="text-indigo-500" />
+              <span className="text-[22px] font-bold text-indigo-600">Two Wheeler</span>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-indigo-100">
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
+                <p className="text-[28px] font-bold text-indigo-600 leading-tight">{totalCap2w}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Occupied</p>
+                <p className="text-[28px] font-bold text-red-500 leading-tight">{totalOcc2w}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Available</p>
+                <p className="text-[28px] font-bold text-emerald-600 leading-tight">{totalAvail2w}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -181,8 +193,8 @@ export default function PublicView() {
                               <p className="text-slate-500 text-[12px]">No image available</p>
                             );
                           })()}
-                          {IS_DEV && (
-                            <button
+                          {/* Debug toggle — visible everywhere, hidden from public via showDebug state */}
+                          <button
                               onClick={() => setShowDebug((v) => !v)}
                               className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
                                 showDebug
@@ -193,33 +205,54 @@ export default function PublicView() {
                               {showDebug ? <Bug size={12} /> : <Eye size={12} />}
                               {showDebug ? "Debug" : "Clean"}
                             </button>
-                          )}
                         </div>
 
                         {/* Stats column */}
                         <div className="w-1/5 flex flex-col gap-3 p-4">
-                          {/* Cars */}
-                          <div className="bg-blue-50 rounded-xl p-4 flex-1 flex flex-col items-center justify-center">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Car size={22} className="text-blue-500" />
-                              <p className="text-[18px] text-blue-600 font-bold">Cars</p>
+                          {/* Cars table */}
+                          <div className="bg-blue-50/60 rounded-xl flex-1 flex flex-col overflow-hidden">
+                            <div className="flex items-center justify-center gap-2.5 py-3.5 border-b border-blue-100">
+                              <Car size={32} className="text-blue-500" />
+                              <p className="text-[22px] text-blue-600 font-bold">Cars</p>
                             </div>
-                            <div className="w-full space-y-1.5 text-center">
-                              <p className="text-[15px] text-slate-500">Total <span className="font-bold text-slate-700 text-[18px]">{camCapCar}</span></p>
-                              <p className="text-[15px] text-red-500">Occupied <span className="font-bold text-[18px]">{camOccCar}</span></p>
-                              <p className="text-[15px] text-emerald-600">Available <span className="font-bold text-[18px]">{availCar}</span></p>
+                            <div className="flex border-b border-blue-100 bg-blue-50/80">
+                              <span className="flex-1 text-center text-[12px] font-semibold text-slate-500 py-1.5">Status</span>
+                              <span className="flex-1 text-center text-[12px] font-semibold text-slate-500 py-1.5">Count</span>
+                            </div>
+                            <div className="flex border-b border-blue-50 py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Occupied</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-red-500 leading-none">{camOccCar}</span>
+                            </div>
+                            <div className="flex border-b border-blue-50 py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Available</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-emerald-600 leading-none">{availCar}</span>
+                            </div>
+                            <div className="flex py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Total</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-blue-600 leading-none">{camCapCar}</span>
                             </div>
                           </div>
-                          {/* 2-Wheelers */}
-                          <div className="bg-indigo-50 rounded-xl p-4 flex-1 flex flex-col items-center justify-center">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Bike size={22} className="text-indigo-500" />
-                              <p className="text-[18px] text-indigo-600 font-bold">2-Wheeler</p>
+                          {/* 2-Wheelers table */}
+                          <div className="bg-indigo-50/60 rounded-xl flex-1 flex flex-col overflow-hidden">
+                            <div className="flex items-center justify-center gap-2.5 py-3.5 border-b border-indigo-100">
+                              <Bike size={32} className="text-indigo-500" />
+                              <p className="text-[22px] text-indigo-600 font-bold">Two Wheeler</p>
                             </div>
-                            <div className="w-full space-y-1.5 text-center">
-                              <p className="text-[15px] text-slate-500">Total <span className="font-bold text-slate-700 text-[18px]">{camCap2w}</span></p>
-                              <p className="text-[15px] text-red-500">Occupied <span className="font-bold text-[18px]">{camOcc2w}</span></p>
-                              <p className="text-[15px] text-emerald-600">Available <span className="font-bold text-[18px]">{avail2w}</span></p>
+                            <div className="flex border-b border-indigo-100 bg-indigo-50/80">
+                              <span className="flex-1 text-center text-[12px] font-semibold text-slate-500 py-1.5">Status</span>
+                              <span className="flex-1 text-center text-[12px] font-semibold text-slate-500 py-1.5">Count</span>
+                            </div>
+                            <div className="flex border-b border-indigo-50 py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Occupied</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-red-500 leading-none">{camOcc2w}</span>
+                            </div>
+                            <div className="flex border-b border-indigo-50 py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Available</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-emerald-600 leading-none">{avail2w}</span>
+                            </div>
+                            <div className="flex py-3">
+                              <span className="flex-1 text-center text-[15px] font-semibold text-slate-700">Total</span>
+                              <span className="flex-1 text-center text-[26px] font-bold text-indigo-600 leading-none">{camCap2w}</span>
                             </div>
                           </div>
                         </div>
