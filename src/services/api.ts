@@ -4,6 +4,8 @@ import type {
   Location, Floor, Zone, ParkingSlot, Device, DeviceCommand, AlertEvent,
   Camera, CanvasResponse, ParkingSession, Role, PermissionItem,
   SharedLink, PublicViewResponse,
+  AnprRecord, AnprSession, AnprDashboardSummary, AnprDashboardLocation,
+  AnprCameraConfig, ParkingScan,
 } from "@/types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -220,5 +222,56 @@ export const notifPrefsApi = {
   get: () => api.get("/notification-preferences/me"),
   update: (prefs: Record<string, unknown>[]) => api.put("/notification-preferences/me", { preferences: prefs }),
 };
+
+// ─── ANPR ───
+export const anprDashboardApi = {
+  summary: (params?: string) => api.get<AnprDashboardSummary>(`/anpr-dashboard/summary?${params || ""}`),
+  locations: (params?: string) => api.get<{ locations: AnprDashboardLocation[] }>(`/anpr-dashboard/locations?${params || ""}`),
+};
+
+export const anprRecordsApi = {
+  list: (params?: string) => api.get<PaginatedResponse<AnprRecord>>(`/anpr-records?${params || ""}`),
+  searchPlates: (q: string) => api.get<{ plates: string[] }>(`/anpr-records/search-plates?q=${encodeURIComponent(q)}`),
+  exportCsvUrl: (params?: string) => `/anpr-records/export-csv?${params || ""}`,
+  exportExcelUrl: (params?: string) => `/anpr-records/export-excel?${params || ""}`,
+  exportPdfUrl: (params?: string) => `/anpr-records/export-pdf?${params || ""}`,
+};
+
+export const anprSessionsApi = {
+  list: (params?: string) => api.get<PaginatedResponse<AnprSession>>(`/anpr-sessions?${params || ""}`),
+  exportCsvUrl: (params?: string) => `/anpr-sessions/export-csv?${params || ""}`,
+  exportExcelUrl: (params?: string) => `/anpr-sessions/export-excel?${params || ""}`,
+  exportPdfUrl: (params?: string) => `/anpr-sessions/export-pdf?${params || ""}`,
+};
+
+export const anprConfigsApi = {
+  list: (params?: string) => api.get<PaginatedResponse<AnprCameraConfig>>(`/anpr-configs?${params || ""}`),
+  get: (id: string) => api.get<AnprCameraConfig>(`/anpr-configs/${id}`),
+  byCamera: (cameraId: string) => api.get<AnprCameraConfig | null>(`/anpr-configs/camera/${cameraId}`),
+  create: (d: Record<string, unknown>) => api.post<AnprCameraConfig>("/anpr-configs", d),
+  update: (id: string, d: Record<string, unknown>) => api.patch<AnprCameraConfig>(`/anpr-configs/${id}`, d),
+  delete: (id: string) => api.delete(`/anpr-configs/${id}`),
+};
+
+// ─── Parking History (Simplified Scans) ───
+export const parkingHistoryApi = {
+  list: (params?: string) => api.get<PaginatedResponse<ParkingScan>>(`/parking-history?${params || ""}`),
+  exportCsvUrl: (params?: string) => `/parking-history/export-csv?${params || ""}`,
+  exportExcelUrl: (params?: string) => `/parking-history/export-excel?${params || ""}`,
+  exportPdfUrl: (params?: string) => `/parking-history/export-pdf?${params || ""}`,
+};
+
+/** Download a file via authenticated axios request and trigger browser save. */
+export async function downloadFile(url: string, filename: string) {
+  const resp = await api.get(url, { responseType: "blob" });
+  const blob = new Blob([resp.data]);
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
 
 export default api;

@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { showSuccess, showError } from "@/lib/toast";
-import { devicesApi, camerasApi, slotsApi, commandsApi } from "@/services/api";
+import { devicesApi, camerasApi, slotsApi, commandsApi, anprConfigsApi } from "@/services/api";
+import type { AnprCameraConfig } from "@/types/api";
 import PolygonDrawer, { type SlotData } from "@/components/PolygonDrawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ArrowLeft, Plus, Camera as CamIcon, Trash2, Crosshair, Eye, PenTool, Square, Pentagon,
-  Monitor, Wifi, WifiOff,
+  Monitor, Wifi, WifiOff, ParkingSquare, ScanLine,
 } from "lucide-react";
 import type { Device, Camera, ParkingSlot } from "@/types/api";
 
@@ -37,6 +38,7 @@ export default function DeviceDetail() {
   const [camLabel, setCamLabel] = useState("");
   const [camSource, setCamSource] = useState("0");
   const [camType, setCamType] = useState("USB");
+  const [camModuleType, setCamModuleType] = useState<"AI_PARKING" | "ANPR">("AI_PARKING");
   const [camSaving, setCamSaving] = useState(false);
   const [deletingCam, setDeletingCam] = useState<Camera | null>(null);
 
@@ -54,6 +56,14 @@ export default function DeviceDetail() {
   const [pendingPolygon, setPendingPolygon] = useState<number[][] | null>(null);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [slotModalSaving, setSlotModalSaving] = useState(false);
+
+  // ANPR config state
+  const [anprConfig, setAnprConfig] = useState<AnprCameraConfig | null>(null);
+  const [anprDrawMode, setAnprDrawMode] = useState<"" | "roi" | "line">("");
+  const [anprRoi, setAnprRoi] = useState<number[][]>([]);
+  const [anprLine, setAnprLine] = useState<number[][]>([]);
+  const [anprDirection, setAnprDirection] = useState<"IN" | "OUT">("IN");
+  const [anprSaving, setAnprSaving] = useState(false);
 
   // Fetch device
   const fetchDevice = useCallback(async () => {
@@ -124,8 +134,25 @@ export default function DeviceDetail() {
     activeCameraIdRef.current = selectedCamera.id;
     setSlots([]);
     setSnapshotUrl(null);
+    setAnprDrawMode("");
     fetchSlotsForCamera(selectedCamera.id);
     loadSnapshot(selectedCamera.id);
+
+    // Load ANPR config if ANPR camera
+    if ((selectedCamera as any).module_type === "ANPR") {
+      anprConfigsApi.byCamera(selectedCamera.id).then(({ data }) => {
+        if (data) {
+          setAnprConfig(data);
+          try { setAnprRoi(JSON.parse(data.roi_coords || "[]")); } catch { setAnprRoi([]); }
+          try { setAnprLine(JSON.parse(data.trigger_line || "[]")); } catch { setAnprLine([]); }
+          setAnprDirection(data.direction || "IN");
+        } else {
+          setAnprConfig(null); setAnprRoi([]); setAnprLine([]); setAnprDirection("IN");
+        }
+      }).catch(() => { setAnprConfig(null); setAnprRoi([]); setAnprLine([]); });
+    } else {
+      setAnprConfig(null); setAnprRoi([]); setAnprLine([]);
+    }
   }, [selectedCamera?.id]);
 
   // Capture snapshot — send command, show loading, fetch fresh image
@@ -174,6 +201,7 @@ export default function DeviceDetail() {
         position_label: camLabel,
         source: camSource,
         camera_type: camType,
+        module_type: camModuleType,
       });
       setShowCamForm(false);
       showSuccess("Camera created");
@@ -244,6 +272,55 @@ export default function DeviceDetail() {
       if (selectedCamera) fetchSlotsForCamera(selectedCamera.id, false);
     } catch (err: any) {
       showError(err?.response?.data?.detail || "Failed");
+    }
+  }
+
+  // ANPR drawing handlers
+  function handleAnprPolygonComplete(polygon: number[][]) {
+    if (anprDrawMode === "roi") {
+      setAnprRoi(polygon);
+      setAnprDrawMode("");
+      showSuccess("ROI drawn — now draw the trigger line or save");
+    } else if (anprDrawMode === "line") {
+      // Line = just first 2 points
+      setAnprLine(polygon.slice(0, 2));
+      setAnprDrawMode("");
+      showSuccess("Trigger line drawn — save to apply");
+    }
+  }
+
+  async function handleAnprSave() {
+    if (!selectedCamera) return;
+    setAnprSaving(true);
+    try {
+      const payload = {
+        camera_id: selectedCamera.id,
+        roi_coords: anprRoi.length > 0 ? JSON.stringify(anprRoi) : null,
+        trigger_line: anprLine.length === 2 ? JSON.stringify(anprLine) : null,
+        direction: anprDirection,
+        is_active: true,
+      };
+      if (anprConfig) {
+        await anprConfigsApi.update(anprConfig.id, payload);
+      } else {
+        const { data } = await anprConfigsApi.create(payload);
+        setAnprConfig(data);
+      }
+      showSuccess("ANPR config saved & synced to device");
+    } catch (err: any) {
+      showError(err?.response?.data?.detail || "Failed to save ANPR config");
+    }
+    setAnprSaving(false);
+  }
+
+  async function handleAnprDelete() {
+    if (!anprConfig) return;
+    try {
+      await anprConfigsApi.delete(anprConfig.id);
+      setAnprConfig(null); setAnprRoi([]); setAnprLine([]); setAnprDirection("IN");
+      showSuccess("ANPR config deleted");
+    } catch (err: any) {
+      showError(err?.response?.data?.detail || "Failed to delete");
     }
   }
 
@@ -337,7 +414,7 @@ export default function DeviceDetail() {
           </button>
         ))}
         <Button
-          onClick={() => { setCamLabel(""); setCamSource("0"); setCamType("USB"); setShowCamForm(true); }}
+          onClick={() => { setCamLabel(""); setCamSource("0"); setCamType("USB"); setCamModuleType("AI_PARKING"); setShowCamForm(true); }}
           variant="ghost"
           className="h-9 rounded-xl border border-dashed border-slate-300 text-slate-400 hover:border-teal-400 hover:text-teal-600 text-[12px] gap-1.5"
         >
@@ -354,6 +431,11 @@ export default function DeviceDetail() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <span className="text-[13px] font-semibold text-slate-700">{selectedCamera.position_label}</span>
+                <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${
+                  (selectedCamera as any).module_type === "ANPR" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                }`}>
+                  {(selectedCamera as any).module_type === "ANPR" ? "ANPR" : "Parking"}
+                </span>
                 <span className="text-[11px] text-slate-400">
                   {selectedCamera.source || "—"} / {selectedCamera.camera_type || "USB"}
                   {selectedCamera.frame_width ? ` / ${selectedCamera.frame_width}x${selectedCamera.frame_height}` : ""}
@@ -378,8 +460,41 @@ export default function DeviceDetail() {
               </div>
             </div>
 
-            {/* Mode Toggle */}
-            {snapshotUrl && (
+            {/* Mode Toggle — different for AI Parking vs ANPR */}
+            {snapshotUrl && (selectedCamera as any).module_type === "ANPR" ? (
+              /* ANPR Mode Toggle */
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex rounded-xl overflow-hidden border border-slate-200">
+                    <button
+                      onClick={() => setAnprDrawMode("")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-all ${anprDrawMode === "" ? "bg-violet-600 text-white" : "bg-white text-slate-500"}`}
+                    >
+                      <Eye size={12} /> View
+                    </button>
+                    <button
+                      onClick={() => setAnprDrawMode("roi")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border-l border-slate-200 transition-all ${anprDrawMode === "roi" ? "bg-violet-600 text-white" : "bg-white text-slate-500"}`}
+                    >
+                      <Pentagon size={12} /> Draw ROI
+                    </button>
+                    <button
+                      onClick={() => setAnprDrawMode("line")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border-l border-slate-200 transition-all ${anprDrawMode === "line" ? "bg-violet-600 text-white" : "bg-white text-slate-500"}`}
+                    >
+                      <PenTool size={12} /> Draw Line
+                    </button>
+                  </div>
+                </div>
+                {anprDrawMode === "roi" && (
+                  <span className="text-[11px] text-violet-600 font-medium">Click corners to draw ROI polygon. Click near start to close.</span>
+                )}
+                {anprDrawMode === "line" && (
+                  <span className="text-[11px] text-violet-600 font-medium">Click 2 points to define the trigger line.</span>
+                )}
+              </div>
+            ) : snapshotUrl && (
+              /* AI Parking Mode Toggle */
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="flex rounded-xl overflow-hidden border border-slate-200">
@@ -427,51 +542,166 @@ export default function DeviceDetail() {
               </div>
             )}
 
-            {/* Detection Frame or Polygon Drawer */}
-            {showDetection && device ? (
-              <div className="rounded-xl overflow-hidden border-2 border-red-200">
-                <img
-                  src={`https://api-minio.projectanddemoserver.com/ai-parking/debug/${device.device_id}/${selectedCamera.position_label}/latest.jpg?t=${Date.now()}`}
-                  alt="Detection view"
-                  className="w-full"
-                  onError={(e) => { (e.target as HTMLImageElement).src = ""; }}
-                />
-              </div>
-            ) : snapshotUrl ? (
-              <PolygonDrawer
-                imageUrl={snapshotUrl}
-                existingSlots={drawerSlots}
-                onComplete={drawMode ? handlePolygonComplete : undefined}
-                onSlotClick={!drawMode ? (s) => setDeletingSlot(slots.find((sl) => sl.id === s.id) || null) : undefined}
-                drawingEnabled={drawMode}
-                drawingMode={shapeMode}
-              />
-            ) : snapshotLoading ? (
-              <div className="flex flex-col items-center justify-center bg-slate-900 rounded-xl py-20">
-                <div className="w-8 h-8 border-2 border-teal-400 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-[14px] font-semibold text-white">Loading new image...</p>
-                <p className="text-[12px] text-slate-400 mt-1">Waiting for edge device to capture and upload</p>
-              </div>
+            {/* Canvas / Polygon Drawer / ANPR Overlay */}
+            {(selectedCamera as any).module_type === "ANPR" ? (
+              /* ANPR Camera — show ROI + trigger line overlays */
+              snapshotUrl ? (
+                <div>
+                  <PolygonDrawer
+                    imageUrl={snapshotUrl}
+                    existingSlots={anprRoi.length > 0 ? [{
+                      id: "anpr-roi",
+                      label: "ROI",
+                      polygon_coords: JSON.stringify(anprRoi),
+                      state: "EMPTY" as const,
+                      slot_type: "GENERAL" as const,
+                      detected_vehicle_type: null,
+                    }] : []}
+                    onComplete={anprDrawMode ? handleAnprPolygonComplete : undefined}
+                    drawingEnabled={anprDrawMode !== ""}
+                    drawingMode={anprDrawMode === "line" ? "line" : "polygon"}
+                    overlayLine={anprLine.length === 2 ? anprLine : null}
+                  />
+                  {/* Trigger line legend */}
+                  <div className="mt-3 flex gap-5 text-[11px] font-medium text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" />
+                      ROI: {anprRoi.length > 0 ? `${anprRoi.length} points` : "Not set"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-violet-500/30 border border-violet-500" />
+                      Trigger Line: {anprLine.length === 2 ? `[${anprLine[0]}] → [${anprLine[1]}]` : "Not set"}
+                    </span>
+                  </div>
+                </div>
+              ) : snapshotLoading ? (
+                <div className="flex flex-col items-center justify-center bg-slate-900 rounded-xl py-20">
+                  <div className="w-8 h-8 border-2 border-violet-400 border-t-transparent rounded-full animate-spin mb-4" />
+                  <p className="text-[14px] font-semibold text-white">Loading image...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-violet-200 py-20">
+                  <ScanLine size={32} className="text-violet-300 mb-3" />
+                  <p className="text-[14px] font-semibold text-slate-500">No snapshot available</p>
+                  <p className="text-[12px] text-slate-400 mt-1">Click "Snapshot" to capture a reference image for ROI drawing</p>
+                </div>
+              )
             ) : (
-              <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 py-20">
-                <CamIcon size={32} className="text-slate-300 mb-3" />
-                <p className="text-[14px] font-semibold text-slate-500">No snapshot available</p>
-                <p className="text-[12px] text-slate-400 mt-1">Click "Snapshot" above to capture a reference image</p>
-              </div>
-            )}
+              /* AI Parking Camera — existing slot drawing */
+              <>
+                {showDetection && device ? (
+                  <div className="rounded-xl overflow-hidden border-2 border-red-200">
+                    <img
+                      src={`https://api-minio.projectanddemoserver.com/ai-parking/debug/${device.device_id}/${selectedCamera.position_label}/latest.jpg?t=${Date.now()}`}
+                      alt="Detection view"
+                      className="w-full"
+                      onError={(e) => { (e.target as HTMLImageElement).src = ""; }}
+                    />
+                  </div>
+                ) : snapshotUrl ? (
+                  <PolygonDrawer
+                    imageUrl={snapshotUrl}
+                    existingSlots={drawerSlots}
+                    onComplete={drawMode ? handlePolygonComplete : undefined}
+                    onSlotClick={!drawMode ? (s) => setDeletingSlot(slots.find((sl) => sl.id === s.id) || null) : undefined}
+                    drawingEnabled={drawMode}
+                    drawingMode={shapeMode}
+                  />
+                ) : snapshotLoading ? (
+                  <div className="flex flex-col items-center justify-center bg-slate-900 rounded-xl py-20">
+                    <div className="w-8 h-8 border-2 border-teal-400 border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-[14px] font-semibold text-white">Loading new image...</p>
+                    <p className="text-[12px] text-slate-400 mt-1">Waiting for edge device to capture and upload</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 py-20">
+                    <CamIcon size={32} className="text-slate-300 mb-3" />
+                    <p className="text-[14px] font-semibold text-slate-500">No snapshot available</p>
+                    <p className="text-[12px] text-slate-400 mt-1">Click "Snapshot" above to capture a reference image</p>
+                  </div>
+                )}
 
-            {/* Legend */}
-            {slots.length > 0 && (
-              <div className="mt-3 flex gap-5 text-[11px] font-medium text-slate-500">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Empty: {empty}</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Vehicle: {vehicle}</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500" /> Obstructed: {obstructed}</span>
-                {mismatched > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500/30 border border-blue-500" /> Mismatched: {mismatched}</span>}
-              </div>
+                {/* Legend */}
+                {slots.length > 0 && (
+                  <div className="mt-3 flex gap-5 text-[11px] font-medium text-slate-500">
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" /> Empty: {empty}</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 border border-red-500" /> Vehicle: {vehicle}</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500" /> Obstructed: {obstructed}</span>
+                    {mismatched > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500/30 border border-blue-500" /> Mismatched: {mismatched}</span>}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Right: Slots Sidebar */}
+          {/* Right Sidebar — ANPR config or Slots list */}
+          {(selectedCamera as any).module_type === "ANPR" ? (
+            <div className="w-[260px] flex-shrink-0">
+              <h2 className="text-[14px] font-bold text-slate-900 mb-3">ANPR Configuration</h2>
+              <div className="space-y-4">
+                {/* ROI */}
+                <div className="bg-violet-50 rounded-xl border border-violet-100 p-3">
+                  <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-1">ROI Polygon</p>
+                  {anprRoi.length > 0 ? (
+                    <p className="text-[11px] font-mono text-violet-700 break-all">{JSON.stringify(anprRoi)}</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">Not set — click "Draw ROI"</p>
+                  )}
+                </div>
+
+                {/* Trigger Line */}
+                <div className="bg-blue-50 rounded-xl border border-blue-100 p-3">
+                  <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Trigger Line</p>
+                  {anprLine.length === 2 ? (
+                    <p className="text-[11px] font-mono text-blue-700 break-all">{JSON.stringify(anprLine)}</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">Not set — click "Draw Line"</p>
+                  )}
+                </div>
+
+                {/* Direction */}
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Direction</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setAnprDirection("IN")}
+                      className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                        anprDirection === "IN" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500"
+                      }`}>
+                      IN (Entry)
+                    </button>
+                    <button onClick={() => setAnprDirection("OUT")}
+                      className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                        anprDirection === "OUT" ? "border-red-500 bg-red-50 text-red-700" : "border-slate-200 text-slate-500"
+                      }`}>
+                      OUT (Exit)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status */}
+                {anprConfig && (
+                  <div className="flex items-center gap-2 text-[10px] text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Saved — {new Date(anprConfig.updated_at).toLocaleString()}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                  <Button onClick={handleAnprSave} disabled={anprSaving}
+                    className="w-full rounded-lg bg-violet-600 hover:bg-violet-700 text-[12px] font-semibold">
+                    {anprSaving ? "Saving..." : anprConfig ? "Update & Sync" : "Save Config"}
+                  </Button>
+                  {anprConfig && (
+                    <Button variant="ghost" onClick={handleAnprDelete}
+                      className="w-full rounded-lg text-[12px] text-red-600 hover:bg-red-50">
+                      Delete Config
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="w-[240px] flex-shrink-0">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-[14px] font-bold text-slate-900">Slots ({slots.length})</h2>
@@ -570,6 +800,7 @@ export default function DeviceDetail() {
               )}
             </div>
           </div>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl card-shadow p-16 text-center">
@@ -577,7 +808,7 @@ export default function DeviceDetail() {
           <p className="text-[14px] font-semibold text-slate-500">No cameras configured</p>
           <p className="text-[12px] text-slate-400 mt-1 mb-4">Add a camera to start monitoring</p>
           <Button
-            onClick={() => { setCamLabel(""); setCamSource("0"); setCamType("USB"); setShowCamForm(true); }}
+            onClick={() => { setCamLabel(""); setCamSource("0"); setCamType("USB"); setCamModuleType("AI_PARKING"); setShowCamForm(true); }}
             className="rounded-xl bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold gap-2"
           >
             <Plus size={14} /> Add Camera
@@ -598,7 +829,7 @@ export default function DeviceDetail() {
             <p className="text-[11px] text-slate-400 mt-1">USB: device index (0, 1). RTSP: full URL. CSI: camera index.</p>
           </div>
           <div>
-            <Label className="text-[13px] font-semibold text-slate-700">Type</Label>
+            <Label className="text-[13px] font-semibold text-slate-700">Source Type</Label>
             <div className="mt-2">
               <Select value={camType} onValueChange={(v) => setCamType(v ?? "USB")}>
                 <SelectTrigger className="h-10 rounded-xl text-[13px]"><span>{camType}</span></SelectTrigger>
@@ -608,6 +839,23 @@ export default function DeviceDetail() {
                   <SelectItem value="CSI">CSI (RPi Camera)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          <div>
+            <Label className="text-[13px] font-semibold text-slate-700">Camera Module</Label>
+            <div className="flex gap-2 mt-2">
+              <button type="button" onClick={() => setCamModuleType("AI_PARKING")}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-semibold border-2 transition-all ${
+                  camModuleType === "AI_PARKING" ? "border-teal-500 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                <ParkingSquare size={14} /> AI Parking
+              </button>
+              <button type="button" onClick={() => setCamModuleType("ANPR")}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-semibold border-2 transition-all ${
+                  camModuleType === "ANPR" ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                <ScanLine size={14} /> ANPR
+              </button>
             </div>
           </div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">

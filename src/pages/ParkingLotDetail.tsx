@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { showSuccess, showError } from "@/lib/toast";
 import { useParams, Link } from "react-router-dom";
-import { locationsApi, devicesApi, camerasApi, floorsApi, zonesApi, slotsApi } from "@/services/api";
+import { locationsApi, devicesApi, camerasApi, floorsApi, zonesApi, slotsApi, anprConfigsApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type {
   Location, Device, Camera as CameraType, Floor, Zone, ParkingSlot,
-  CanvasResponse,
+  CanvasResponse, AnprCameraConfig,
 } from "@/types/api";
 
 type Tab = "structure" | "devices" | "live" | "overview";
@@ -53,9 +53,19 @@ export default function ParkingLotDetail() {
   const [formSlotType, setFormSlotType] = useState("GENERAL");
   const [formCapCar, setFormCapCar] = useState("1");
   const [formCap2w, setFormCap2w] = useState("0");
+  const [formModuleType, setFormModuleType] = useState<"AI_PARKING" | "ANPR">("AI_PARKING");
   const [formSaving, setFormSaving] = useState(false);
   const [deleting, setDeleting] = useState<{ id: string; name: string; type: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ANPR config
+  const [showAnprConfig, setShowAnprConfig] = useState(false);
+  const [anprConfigCamera, setAnprConfigCamera] = useState<CameraType | null>(null);
+  const [anprConfig, setAnprConfig] = useState<AnprCameraConfig | null>(null);
+  const [anprRoi, setAnprRoi] = useState("");
+  const [anprTriggerLine, setAnprTriggerLine] = useState("");
+  const [anprDirection, setAnprDirection] = useState<"IN" | "OUT">("IN");
+  const [anprConfigSaving, setAnprConfigSaving] = useState(false);
 
   // Load location
   useEffect(() => {
@@ -166,8 +176,8 @@ export default function ParkingLotDetail() {
   async function handleCameraSubmit(e: FormEvent) {
     e.preventDefault(); setFormSaving(true);
     try {
-      if (editingId) await camerasApi.update(editingId, { position_label: formName });
-      else await camerasApi.create({ device_id: formDeviceId, position_label: formName });
+      if (editingId) await camerasApi.update(editingId, { position_label: formName, module_type: formModuleType });
+      else await camerasApi.create({ device_id: formDeviceId, position_label: formName, module_type: formModuleType });
       setShowCameraForm(false);
       camerasApi.byDevice(formDeviceId).then(({ data }) => setCameras((p) => ({ ...p, [formDeviceId]: data.items || [] })));
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setFormSaving(false); }
@@ -184,13 +194,46 @@ export default function ParkingLotDetail() {
     } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setDeleteLoading(false); }
   }
 
+  // ANPR config handlers
+  useEffect(() => {
+    if (showAnprConfig && anprConfigCamera) {
+      anprConfigsApi.byCamera(anprConfigCamera.id).then(({ data }) => {
+        if (data) {
+          setAnprConfig(data);
+          setAnprRoi(data.roi_coords || "");
+          setAnprTriggerLine(data.trigger_line || "");
+          setAnprDirection(data.direction || "IN");
+        } else {
+          setAnprConfig(null);
+          setAnprRoi(""); setAnprTriggerLine(""); setAnprDirection("IN");
+        }
+      }).catch(() => { setAnprConfig(null); setAnprRoi(""); setAnprTriggerLine(""); setAnprDirection("IN"); });
+    }
+  }, [showAnprConfig, anprConfigCamera]);
+
+  async function handleAnprConfigSave() {
+    if (!anprConfigCamera) return;
+    setAnprConfigSaving(true);
+    try {
+      const payload = { camera_id: anprConfigCamera.id, roi_coords: anprRoi || null, trigger_line: anprTriggerLine || null, direction: anprDirection, is_active: true };
+      if (anprConfig) {
+        await anprConfigsApi.update(anprConfig.id, payload);
+      } else {
+        await anprConfigsApi.create(payload);
+      }
+      showSuccess("ANPR config saved");
+      setShowAnprConfig(false);
+    } catch (err: any) { showError(err?.response?.data?.detail || "Failed to save ANPR config"); }
+    setAnprConfigSaving(false);
+  }
+
   function openAddFloor() { setEditingId(null); setFormName(""); setFormLevel("0"); setFormCapacity(""); setShowFloorForm(true); }
   function openEditFloor(f: Floor) { setEditingId(f.id); setFormName(f.label); setFormLevel(f.level_number.toString()); setFormCapacity(f.capacity.toString()); setShowFloorForm(true); }
   function openAddZone(floorId: string) { setEditingId(null); setFormParentId(floorId); setFormName(""); setFormCapacity(""); setShowZoneForm(true); }
   function openEditZone(z: Zone) { setEditingId(z.id); setFormName(z.name); setFormCapacity(z.capacity.toString()); setShowZoneForm(true); }
   function openAddSlot(zoneId: string) { setEditingId(null); setFormParentId(zoneId); setFormName(""); setFormSlotType("GENERAL"); setFormCapCar("1"); setFormCap2w("0"); setShowSlotForm(true); }
   function openEditSlot(s: ParkingSlot) { setEditingId(s.id); setFormName(s.label); setFormSlotType(s.slot_type); setFormCapCar((s.capacity_car || 0).toString()); setFormCap2w((s.capacity_two_wheeler || 0).toString()); setShowSlotForm(true); }
-  function openAddCamera(deviceId: string) { setEditingId(null); setFormDeviceId(deviceId); setFormName(""); setShowCameraForm(true); }
+  function openAddCamera(deviceId: string) { setEditingId(null); setFormDeviceId(deviceId); setFormName(""); setFormModuleType("AI_PARKING"); setShowCameraForm(true); }
 
   if (!location) return <div className="p-8 text-slate-400">Loading...</div>;
 
@@ -385,8 +428,25 @@ export default function ParkingLotDetail() {
                               <Camera size={14} className="text-teal-500" />
                               <span className="text-[13px] font-bold text-slate-700">{c.position_label}</span>
                               <span className={`w-1.5 h-1.5 rounded-full ${c.status === "ACTIVE" ? "bg-emerald-500" : "bg-red-500"}`} />
+                              <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${
+                                (c as any).module_type === "ANPR" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                              }`}>
+                                {(c as any).module_type === "ANPR" ? "ANPR" : "Parking"}
+                              </span>
                             </div>
                             <div className="flex gap-1">
+                              {(c as any).module_type === "ANPR" && (
+                                <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-violet-50 hover:text-violet-600"
+                                  onClick={() => { setAnprConfigCamera(c); setShowAnprConfig(true); }}
+                                  title="ANPR Config (ROI + Trigger Line)">
+                                  <Eye size={11} />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-slate-100"
+                                onClick={() => { setEditingId(c.id); setFormName(c.position_label); setFormModuleType((c as any).module_type || "AI_PARKING"); setFormDeviceId(d.id); setShowCameraForm(true); }}
+                                title="Edit camera">
+                                <Pencil size={11} />
+                              </Button>
                               <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-red-50 hover:text-red-600" onClick={() => setDeleting({ id: c.id, name: c.position_label, type: "camera" })}><Trash2 size={11} /></Button>
                             </div>
                           </div>
@@ -533,18 +593,106 @@ export default function ParkingLotDetail() {
         </form>
       </CrudDialog>
 
-      <CrudDialog open={showCameraForm} onClose={() => setShowCameraForm(false)} title="Add Camera">
+      <CrudDialog open={showCameraForm} onClose={() => setShowCameraForm(false)} title={editingId ? "Edit Camera" : "Add Camera"}>
         <form onSubmit={handleCameraSubmit} className="space-y-4 mt-3">
           <div><Label className="text-[13px]">Camera Label</Label><Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CAM-001-L, CAM-001-R..." className="mt-1.5 h-9 rounded-lg text-[13px]" required /></div>
+          <div>
+            <Label className="text-[13px]">Camera Type</Label>
+            <div className="flex gap-2 mt-1.5">
+              <button type="button" onClick={() => setFormModuleType("AI_PARKING")}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                  formModuleType === "AI_PARKING" ? "border-teal-500 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                <ParkingSquare size={14} /> AI Parking
+              </button>
+              <button type="button" onClick={() => setFormModuleType("ANPR")}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                  formModuleType === "ANPR" ? "border-teal-500 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                <Eye size={14} /> ANPR
+              </button>
+            </div>
+          </div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
             <Button type="button" variant="ghost" onClick={() => setShowCameraForm(false)} className="rounded-lg text-[13px]">Cancel</Button>
-            <Button type="submit" disabled={formSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">{formSaving ? "Saving..." : "Create"}</Button>
+            <Button type="submit" disabled={formSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">{formSaving ? "Saving..." : editingId ? "Update" : "Create"}</Button>
           </div>
         </form>
       </CrudDialog>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
         title={`Delete ${deleting?.type || ""}`} description={`Remove "${deleting?.name}" permanently?`} loading={deleteLoading} />
+
+      {/* ANPR Camera Config Dialog */}
+      <CrudDialog open={showAnprConfig} onClose={() => setShowAnprConfig(false)} title={`ANPR Config — ${anprConfigCamera?.position_label || ""}`} maxWidth="580px">
+        <div className="space-y-4 mt-3">
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Configuration</p>
+            <p className="text-[12px] text-slate-500">Define the ROI polygon and trigger line as JSON coordinate arrays. These will be synced to the edge device via MQTT.</p>
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-semibold text-slate-700">ROI Coordinates</Label>
+            <p className="text-[10px] text-slate-400 mt-0.5 mb-1.5">JSON polygon: [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]</p>
+            <textarea
+              value={anprRoi}
+              onChange={(e) => setAnprRoi(e.target.value)}
+              placeholder='[[100,100],[500,100],[500,400],[100,400]]'
+              rows={3}
+              className="w-full px-3 py-2 text-[12px] font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 resize-none"
+            />
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-semibold text-slate-700">Trigger Line</Label>
+            <p className="text-[10px] text-slate-400 mt-0.5 mb-1.5">JSON line: [[x1,y1],[x2,y2]] — horizontal line inside the ROI</p>
+            <textarea
+              value={anprTriggerLine}
+              onChange={(e) => setAnprTriggerLine(e.target.value)}
+              placeholder='[[100,250],[500,250]]'
+              rows={2}
+              className="w-full px-3 py-2 text-[12px] font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 resize-none"
+            />
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-semibold text-slate-700">Direction</Label>
+            <div className="flex gap-2 mt-1.5">
+              <button type="button" onClick={() => setAnprDirection("IN")}
+                className={`flex-1 px-3 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                  anprDirection === "IN" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                IN (Entry)
+              </button>
+              <button type="button" onClick={() => setAnprDirection("OUT")}
+                className={`flex-1 px-3 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
+                  anprDirection === "OUT" ? "border-red-500 bg-red-50 text-red-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}>
+                OUT (Exit)
+              </button>
+            </div>
+          </div>
+
+          {anprConfig && (
+            <div className="flex items-center gap-2 text-[11px] text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Config exists — last updated {new Date(anprConfig.updated_at).toLocaleString()}
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
+            <Button type="button" variant="ghost" onClick={() => setShowAnprConfig(false)} className="rounded-lg text-[13px]">Cancel</Button>
+            {anprConfig && (
+              <Button type="button" variant="ghost" onClick={async () => {
+                if (anprConfig) { await anprConfigsApi.delete(anprConfig.id); showSuccess("ANPR config deleted"); setShowAnprConfig(false); }
+              }} className="rounded-lg text-[13px] text-red-600 hover:bg-red-50">Delete Config</Button>
+            )}
+            <Button onClick={handleAnprConfigSave} disabled={anprConfigSaving} className="rounded-lg bg-teal-600 hover:bg-teal-700 text-[13px] font-semibold">
+              {anprConfigSaving ? "Saving..." : anprConfig ? "Update Config" : "Save Config"}
+            </Button>
+          </div>
+        </div>
+      </CrudDialog>
     </div>
   );
 }

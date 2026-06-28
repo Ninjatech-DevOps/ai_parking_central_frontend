@@ -132,6 +132,8 @@ export interface Location {
   longitude: number | null;
   location_type: "MALL" | "STREET" | "OPEN" | "COMMERCIAL" | "RESIDENTIAL";
   total_capacity: number;
+  total_car_slots: number;
+  total_two_wheeler_slots: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -184,6 +186,7 @@ export interface Camera {
   position_label: string;
   source: string | null;
   camera_type: string | null;
+  module_type: "AI_PARKING" | "ANPR";
   detection_interval: number | null;
   status: "ACTIVE" | "INACTIVE" | "FAILED";
   is_active: boolean;
@@ -368,4 +371,98 @@ export interface OccupancyAnalysisResponse {
   global_avg_occupancy_pct: number;
   global_avg_mismatch_pct: number;
   hotspot_zones: string[];
+}
+
+// ─── ANPR ───
+export interface AnprRecord {
+  id: string;
+  device_id: string;
+  camera_id: string;
+  location_id: string;
+  city_id: string | null;
+  number_plate: string;
+  vehicle_type: "CAR" | "TWO_WHEELER";
+  direction: "IN" | "OUT";
+  image_url: string | null;
+  gemini_result: string | null;
+  paddle_result: string | null;
+  confidence_gemini: number | null;
+  confidence_paddle: number | null;
+  recorded_at: string;
+  location_name: string | null;
+}
+
+export interface AnprSession {
+  id: string;
+  location_id: string;
+  city_id: string | null;
+  number_plate: string;
+  vehicle_type: "CAR" | "TWO_WHEELER";
+  entry_record_id: string;
+  exit_record_id: string | null;
+  entry_time: string;
+  exit_time: string | null;
+  entry_image_url: string | null;
+  exit_image_url: string | null;
+  is_active: boolean;
+  duration_display: string | null;
+  location_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnprDashboardSummary {
+  car_total: number;
+  car_occupied: number;
+  car_available: number;
+  two_wheeler_total: number;
+  two_wheeler_occupied: number;
+  two_wheeler_available: number;
+  obstructions: number;
+}
+
+export interface AnprDashboardLocation {
+  location_id: string;
+  location_name: string;
+  car_total: number;
+  car_occupied: number;
+  car_available: number;
+  two_wheeler_total: number;
+  two_wheeler_occupied: number;
+  two_wheeler_available: number;
+  obstructions: number;
+  occupancy_pct: number;
+  availability_pct: number;
+}
+
+export interface AnprCameraConfig {
+  id: string;
+  camera_id: string;
+  roi_coords: string | null;
+  trigger_line: string | null;
+  direction: "IN" | "OUT";
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Parking Scan (Simplified History) ───
+export interface ParkingScan {
+  id: string;
+  device_id: string;
+  camera_id: string;
+  location_id: string;
+  city_id: string | null;
+  image_url: string | null;
+  car_occupied: number;
+  car_available: number;
+  car_total: number;
+  two_wheeler_occupied: number;
+  two_wheeler_available: number;
+  two_wheeler_total: number;
+  has_obstruction: boolean;
+  recorded_at: string;
+  location_name: string | null;
+  camera_label: string | null;
+  device_name: string | null;
 }

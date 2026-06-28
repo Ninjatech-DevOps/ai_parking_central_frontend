@@ -5,10 +5,11 @@ import { useFilter } from "@/contexts/FilterContext";
 import { devicesApi, locationsApi, camerasApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
+import AnprDashboard from "@/pages/AnprDashboard";
 import {
   MapPin, ParkingSquare,
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
-  Eye, Image as ImageIcon, Loader2,
+  Eye, Image as ImageIcon, Loader2, ScanLine,
 } from "lucide-react";
 import type { Device, Location, CanvasResponse, CanvasCamera } from "@/types/api";
 
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { filterLabel, deviceQueryParams, queryParams, locationId, areaId, areas } = useFilter();
 
+  const [activeTab, setActiveTab] = useState<"parking" | "anpr">("parking");
   const [devices, setDevices] = useState<Device[]>([]);
   const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,6 +123,30 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-6 bg-white rounded-xl card-shadow p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("parking")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
+            activeTab === "parking" ? "bg-teal-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+          }`}
+        >
+          <ParkingSquare size={14} /> AI Parking
+        </button>
+        <button
+          onClick={() => setActiveTab("anpr")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
+            activeTab === "anpr" ? "bg-teal-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+          }`}
+        >
+          <ScanLine size={14} /> ANPR
+        </button>
+      </div>
+
+      {activeTab === "anpr" ? (
+        <AnprDashboard />
+      ) : (
+      <>
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-8">
         <StatCard label="Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
@@ -450,6 +476,8 @@ export default function Dashboard() {
           </div>
         )}
       </CrudDialog>
+      </>
+      )}
     </div>
   );
 }

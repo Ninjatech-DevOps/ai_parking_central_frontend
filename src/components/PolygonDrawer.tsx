@@ -15,12 +15,14 @@ interface Props {
   onComplete?: (polygon: number[][]) => void;
   onSlotClick?: (slot: SlotData) => void;
   drawingEnabled?: boolean;
-  drawingMode?: "polygon" | "rectangle";
+  drawingMode?: "polygon" | "rectangle" | "line";
+  /** Optional line overlay: [[x1,y1],[x2,y2]] in original image coords */
+  overlayLine?: number[][] | null;
 }
 
 export type { SlotData };
 
-export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onSlotClick, drawingEnabled = true, drawingMode = "polygon" }: Props) {
+export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onSlotClick, drawingEnabled = true, drawingMode = "polygon", overlayLine }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<number[][]>([]);
   const [rectStart, setRectStart] = useState<number[] | null>(null);
@@ -108,6 +110,58 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
       ctx.stroke();
     }
 
+    // Line mode preview
+    if (drawingEnabled && drawingMode === "line" && rectStart && mousePos) {
+      ctx.beginPath();
+      ctx.moveTo(rectStart[0], rectStart[1]);
+      ctx.lineTo(mousePos[0], mousePos[1]);
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Start point
+      ctx.beginPath();
+      ctx.arc(rectStart[0], rectStart[1], 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#a855f7";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Overlay line (trigger line) — always drawn if provided
+    if (overlayLine && overlayLine.length === 2) {
+      const p1 = [overlayLine[0][0] / scaleX, overlayLine[0][1] / scaleY];
+      const p2 = [overlayLine[1][0] / scaleX, overlayLine[1][1] / scaleY];
+      ctx.beginPath();
+      ctx.moveTo(p1[0], p1[1]);
+      ctx.lineTo(p2[0], p2[1]);
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // Endpoints
+      for (const pt of [p1, p2]) {
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#a855f7";
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      // Label
+      const mx = (p1[0] + p2[0]) / 2;
+      const my = (p1[1] + p2[1]) / 2;
+      ctx.fillStyle = "rgba(168,85,247,0.85)";
+      const tw = ctx.measureText("TRIGGER").width;
+      ctx.fillRect(mx - tw / 2 - 6, my - 10, tw + 12, 20);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("TRIGGER", mx, my + 4);
+    }
+
     // Polygon preview
     if (drawingEnabled && drawingMode === "polygon" && points.length > 0) {
       ctx.beginPath();
@@ -150,7 +204,7 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
         }
       }
     }
-  }, [points, rectStart, mousePos, existingSlots, canvasSize, scaleX, scaleY, hoveredSlot, drawingEnabled, drawingMode]);
+  }, [points, rectStart, mousePos, existingSlots, canvasSize, scaleX, scaleY, hoveredSlot, drawingEnabled, drawingMode, overlayLine]);
 
   useEffect(() => { if (imgLoaded) draw(); }, [draw, imgLoaded]);
 
@@ -174,6 +228,19 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
     if (!drawingEnabled) {
       const slot = getSlotAt(x, y);
       if (slot) onSlotClick?.(slot);
+      return;
+    }
+
+    if (drawingMode === "line") {
+      if (!rectStart) {
+        setRectStart([x, y]);
+      } else {
+        onComplete?.([
+          [Math.round(rectStart[0] * scaleX), Math.round(rectStart[1] * scaleY)],
+          [Math.round(x * scaleX), Math.round(y * scaleY)],
+        ]);
+        setRectStart(null);
+      }
       return;
     }
 

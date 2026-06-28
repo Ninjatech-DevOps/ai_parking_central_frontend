@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Monitor, Bell, Users, Settings, ParkingSquare,
   ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2, Download,
+  ScanLine, Car,
 } from "lucide-react";
 
 interface NavItemConfig {
@@ -23,7 +24,8 @@ const sections: SectionConfig[] = [
     label: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/parking-history", label: "Parking History", icon: History, permissions: ["slots:view"] },
+      { to: "/parking-history", label: "Parking History", icon: Car, permissions: ["slots:view"] },
+      { to: "/anpr-history", label: "ANPR History", icon: ScanLine, permissions: ["anpr:view"] },
     ],
   },
   {

@@ -43,6 +43,8 @@ export default function Locations() {
   const [formLng, setFormLng] = useState("");
   const [formType, setFormType] = useState("OPEN");
   const [formCapacity, setFormCapacity] = useState("");
+  const [formCarSlots, setFormCarSlots] = useState("");
+  const [formTwSlots, setFormTwSlots] = useState("");
   const [formSaving, setFormSaving] = useState(false);
 
   // Load all lookup data for name resolution + form
@@ -81,7 +83,7 @@ export default function Locations() {
 
   function openCreate() {
     setEditing(null); setFormCityId(cityId); setFormTalukaId(""); setFormVillageId(""); setFormAreaId("");
-    setFormName(""); setFormAddress(""); setFormLat(""); setFormLng(""); setFormType("OPEN"); setFormCapacity("");
+    setFormName(""); setFormAddress(""); setFormLat(""); setFormLng(""); setFormType("OPEN"); setFormCapacity(""); setFormCarSlots(""); setFormTwSlots("");
     setShowForm(true);
   }
   function openEdit(l: Location) {
@@ -93,6 +95,7 @@ export default function Locations() {
     setFormName(l.name); setFormAddress(l.address || "");
     setFormLat(l.latitude?.toString() || ""); setFormLng(l.longitude?.toString() || "");
     setFormType(l.location_type); setFormCapacity(l.total_capacity.toString());
+    setFormCarSlots(l.total_car_slots?.toString() || "0"); setFormTwSlots(l.total_two_wheeler_slots?.toString() || "0");
     setShowForm(true);
   }
 
@@ -107,6 +110,7 @@ export default function Locations() {
         address: formAddress || null,
         latitude: formLat ? parseFloat(formLat) : null, longitude: formLng ? parseFloat(formLng) : null,
         location_type: formType, total_capacity: parseInt(formCapacity) || 0,
+        total_car_slots: parseInt(formCarSlots) || 0, total_two_wheeler_slots: parseInt(formTwSlots) || 0,
       };
       if (formAreaId) p.area_id = formAreaId;
       editing ? await locationsApi.update(editing.id, p) : await locationsApi.create(p);
@@ -226,6 +230,11 @@ export default function Locations() {
               <Select value={formType} onValueChange={(v) => setFormType(v ?? "OPEN")}><SelectTrigger className="mt-2 h-10 rounded-xl text-[13px] border-slate-200"><span>{formType}</span></SelectTrigger><SelectContent className="rounded-xl">{["MALL","STREET","OPEN","COMMERCIAL","RESIDENTIAL"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
             </div>
             <div><Label className="text-[13px] font-semibold text-slate-700">Capacity</Label><Input type="number" value={formCapacity} onChange={(e) => setFormCapacity(e.target.value)} className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div><Label className="text-[13px] font-semibold text-slate-700">Car Slots (ANPR)</Label><Input type="number" min="0" value={formCarSlots} onChange={(e) => setFormCarSlots(e.target.value)} placeholder="0" className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
+            <div><Label className="text-[13px] font-semibold text-slate-700">2-Wheeler Slots (ANPR)</Label><Input type="number" min="0" value={formTwSlots} onChange={(e) => setFormTwSlots(e.target.value)} placeholder="0" className="mt-2 h-10 rounded-xl text-[13px] border-slate-200" /></div>
           </div>
 
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
