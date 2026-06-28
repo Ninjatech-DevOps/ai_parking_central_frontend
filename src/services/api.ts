@@ -189,11 +189,15 @@ export const slotEventsApi = {
 };
 
 // ─── Reports ───
+// Export URLs are relative so they can be fetched (with auth) via downloadFile().
 export const reportsApi = {
   summary: (params?: string) => api.get<any>(`/reports/summary?${params || ""}`),
-  exportCsvUrl: (params?: string) => `${API_BASE}/reports/export-csv?${params || ""}`,
+  exportCsvUrl: (params?: string) => `/reports/export-csv?${params || ""}`,
+  exportExcelUrl: (params?: string) => `/reports/export-excel?${params || ""}`,
+  exportPdfUrl: (params?: string) => `/reports/export-pdf?${params || ""}`,
   occupancyAnalysis: (params?: string) => api.get<any>(`/reports/occupancy-analysis?${params || ""}`),
-  occupancyExportCsvUrl: (params?: string) => `${API_BASE}/reports/occupancy-analysis/export-csv?${params || ""}`,
+  occupancyExportCsvUrl: (params?: string) => `/reports/occupancy-analysis/export-csv?${params || ""}`,
+  occupancyExportExcelUrl: (params?: string) => `/reports/occupancy-analysis/export-excel?${params || ""}`,
 };
 
 // ─── Alerts ───

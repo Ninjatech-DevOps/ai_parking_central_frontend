@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import Pagination from "@/components/Pagination";
 import { AlertTriangle, Clock, Search, Shield, CheckCheck, Check, CheckCircle } from "lucide-react";
 import { showSuccess, showError } from "@/lib/toast";
+import AlertsSkeleton from "@/components/skeletons/AlertsSkeleton";
 import type { AlertEvent } from "@/types/api";
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -20,12 +22,16 @@ export default function Alerts() {
   const [search, setSearch] = useState("");
 
   const fetchAlerts = useCallback(async () => {
-    const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-    if (severityFilter !== "all") p.set("severity", severityFilter);
-    const { data } = await alertsApi.list(p.toString());
-    setAlerts(data.items || []);
-    setTotal(data.total || 0);
-    setTotalPages(data.total_pages || 0);
+    try {
+      const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (severityFilter !== "all") p.set("severity", severityFilter);
+      const { data } = await alertsApi.list(p.toString());
+      setAlerts(data.items || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.total_pages || 0);
+    } finally {
+      setLoading(false);
+    }
   }, [severityFilter, page]);
   usePolling(fetchAlerts, 10000);
 
@@ -44,6 +50,8 @@ export default function Alerts() {
       showError("Failed to mark all as read");
     }
   }
+
+  if (loading && alerts.length === 0) return <AlertsSkeleton />;
 
   return (
     <div className="w-full">

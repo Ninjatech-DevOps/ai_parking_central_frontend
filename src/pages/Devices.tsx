@@ -15,6 +15,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pagination from "@/components/Pagination";
 import { RotateCw, Camera, Eye, Plus, Pencil, Trash2, History, Search, Monitor } from "lucide-react";
+import DevicesSkeleton from "@/components/skeletons/DevicesSkeleton";
 import type { Device, Location, DeviceCommand, Floor, Zone } from "@/types/api";
 
 export default function Devices() {
@@ -26,6 +27,7 @@ export default function Devices() {
   const canUpdate = hasPermission("devices:update");
 
   const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [total, setTotal] = useState(0);
   // Tick every second to keep heartbeat "ago" text live
@@ -80,13 +82,17 @@ export default function Devices() {
   const [totalPages, setTotalPages] = useState(0);
 
   const fetchDevices = useCallback(async () => {
-    const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-    if (statusFilter !== "all") p.set("status", statusFilter);
-    if (deviceQueryParams) {
-      new URLSearchParams(deviceQueryParams).forEach((v, k) => p.set(k, v));
+    try {
+      const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (statusFilter !== "all") p.set("status", statusFilter);
+      if (deviceQueryParams) {
+        new URLSearchParams(deviceQueryParams).forEach((v, k) => p.set(k, v));
+      }
+      const { data } = await devicesApi.list(p.toString());
+      setDevices(data.items || []); setTotal(data.total || 0); setTotalPages(data.total_pages || 0);
+    } finally {
+      setLoading(false);
     }
-    const { data } = await devicesApi.list(p.toString());
-    setDevices(data.items || []); setTotal(data.total || 0); setTotalPages(data.total_pages || 0);
   }, [statusFilter, deviceQueryParams, page]);
   usePolling(fetchDevices, 10000);
 
@@ -171,6 +177,8 @@ export default function Devices() {
     if (!search) return devices;
     return devices.filter((d) => d.device_id.toLowerCase().includes(search.toLowerCase()));
   }, [devices, search]);
+
+  if (loading && devices.length === 0) return <DevicesSkeleton />;
 
   return (
     <div className="w-full">

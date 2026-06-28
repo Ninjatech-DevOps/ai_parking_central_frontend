@@ -4,10 +4,29 @@ import { anprSessionsApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
-  Search, Calendar, Car, Bike, Clock, Download, FileSpreadsheet, FileText,
-  SlidersHorizontal, X, Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
+  Car, Bike, Download, FileSpreadsheet, FileText,
+  X, Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
 } from "lucide-react";
+import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { AnprSession } from "@/types/api";
+import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
+
+function AnprHistorySkeleton() {
+  return (
+    <SkeletonShell>
+      <SkeletonHeader action />
+      {/* Date-range / filter row */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 animate-pulse">
+        <Skel className="w-72 h-10 rounded-xl" />
+        <Skel className="w-36 h-10 rounded-xl" />
+        <Skel className="w-44 h-10 rounded-xl" />
+        <Skel className="w-44 h-10 rounded-xl" />
+      </div>
+      {/* Table: Image, Number Plate, In Time, Out Time, Total Duration */}
+      <SkeletonTable rows={8} cols={5} />
+    </SkeletonShell>
+  );
+}
 
 const DATE_PRESETS = [
   { label: "Today", key: "today" },
@@ -59,13 +78,19 @@ export default function AnprHistory() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [showFilters, setShowFilters] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [plateSearch, setPlateSearch] = useState("");
   const [vehicleType, setVehicleType] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [datePreset, setDatePreset] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  // Draft (committed on Apply Filters)
+  const [draftPreset, setDraftPreset] = useState("today");
+  const [draftFrom, setDraftFrom] = useState("");
+  const [draftTo, setDraftTo] = useState("");
+  const [draftType, setDraftType] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
 
   // Image preview
   const [previewImg, setPreviewImg] = useState<string | null>(null);
@@ -112,13 +137,21 @@ export default function AnprHistory() {
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId]);
 
-  function resetFilters() {
-    setPlateSearch(""); setVehicleType(""); setStatusFilter("");
-    setDatePreset("today"); setCustomFrom(""); setCustomTo("");
-    setPage(1);
+  function openFilters() {
+    setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo); setDraftType(vehicleType); setDraftStatus(statusFilter);
+    setFiltersOpen(true);
+  }
+  function applyFilters() {
+    setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo); setVehicleType(draftType); setStatusFilter(draftStatus);
+    setPage(1); setFiltersOpen(false);
+  }
+  function clearFilters() {
+    setDraftPreset("today"); setDraftFrom(""); setDraftTo(""); setDraftType(""); setDraftStatus("");
+    setDatePreset("today"); setCustomFrom(""); setCustomTo(""); setVehicleType(""); setStatusFilter(""); setPage(1);
   }
 
-  const activeFilterCount = [plateSearch, vehicleType, statusFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+  const activeFilterCount = [vehicleType, statusFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+  const isLive = datePreset === "today" && !customFrom && !customTo;
 
   function handleExport(type: "csv" | "excel" | "pdf") {
     const p = new URLSearchParams();
@@ -142,12 +175,17 @@ export default function AnprHistory() {
     downloadFile(url, `anpr_sessions_${ts}.${ext}`);
   }
 
+  if (loading && sessions.length === 0) return <AnprHistorySkeleton />;
+
   return (
     <div className="w-full">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-slate-900">ANPR History</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[22px] font-bold text-slate-900">ANPR History</h1>
+            {isLive && <LiveBadge />}
+          </div>
           <p className="text-[13px] text-slate-400 mt-0.5">Vehicle entry/exit sessions via number plate recognition</p>
         </div>
         <div className="flex items-center gap-2">
@@ -163,119 +201,44 @@ export default function AnprHistory() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl card-shadow mb-6 overflow-hidden">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={14} className="text-slate-400" />
-            <span className="text-[13px] font-semibold text-slate-700">Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {activeFilterCount > 0 && (
-              <button onClick={(e) => { e.stopPropagation(); resetFilters(); }} className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1">
-                <X size={11} /> Reset
-              </button>
-            )}
-          </div>
-        </button>
+      {/* Search (number plate) + Filters button */}
+      <FilterToolbar
+        search={plateSearch}
+        onSearch={(v) => setPlateSearch(v.toUpperCase())}
+        searchPlaceholder="Search number plate..."
+        filterCount={activeFilterCount}
+        onOpen={openFilters}
+      />
 
-        <div className={`grid transition-all duration-300 ${showFilters ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-          <div className="overflow-hidden">
-            <div className="px-5 pb-4 pt-1 flex flex-wrap items-end gap-3">
-              {/* Date Presets */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Quick Date</label>
-                <div className="flex gap-1">
-                  {DATE_PRESETS.map((dp) => (
-                    <button
-                      key={dp.key}
-                      onClick={() => { setDatePreset(dp.key); setCustomFrom(""); setCustomTo(""); }}
-                      className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
-                        datePreset === dp.key && !customFrom && !customTo
-                          ? "bg-teal-600 text-white"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
-                    >
-                      {dp.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Number Plate Search */}
-              <div className="w-36">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Number Plate</label>
-                <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={plateSearch}
-                    onChange={(e) => setPlateSearch(e.target.value.toUpperCase())}
-                    className="w-full pl-8 pr-2 h-8 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                  />
-                </div>
-              </div>
-
-              {/* Vehicle Type */}
-              <div className="w-24">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Type</label>
-                <select
-                  value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value)}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                >
-                  <option value="">All</option>
-                  <option value="CAR">Car</option>
-                  <option value="TWO_WHEELER">2W</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div className="w-28">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                >
-                  <option value="">All</option>
-                  <option value="active">Parked</option>
-                  <option value="completed">Done</option>
-                </select>
-              </div>
-
-              {/* Custom From */}
-              <div className="w-44">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">From</label>
-                <input
-                  type="datetime-local"
-                  value={customFrom}
-                  onChange={(e) => { setCustomFrom(e.target.value); setDatePreset(""); }}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                />
-              </div>
-
-              {/* Custom To */}
-              <div className="w-44">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">To</label>
-                <input
-                  type="datetime-local"
-                  value={customTo}
-                  onChange={(e) => { setCustomTo(e.target.value); setDatePreset(""); }}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Inline Filter panel */}
+      <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearFilters}>
+        <FilterField label="Quick Range">
+          <FilterSelect value={draftFrom || draftTo ? "" : draftPreset} onChange={(v) => { setDraftPreset(v); setDraftFrom(""); setDraftTo(""); }}>
+            <option value="" disabled>Custom range</option>
+            {DATE_PRESETS.map((dp) => <option key={dp.key} value={dp.key}>{dp.label}</option>)}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Type">
+          <FilterSelect value={draftType} onChange={setDraftType}>
+            <option value="">All</option>
+            <option value="CAR">Car</option>
+            <option value="TWO_WHEELER">2-Wheeler</option>
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Status">
+          <FilterSelect value={draftStatus} onChange={setDraftStatus}>
+            <option value="">All</option>
+            <option value="active">Parked</option>
+            <option value="completed">Done</option>
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="From Date">
+          <FilterDateInput value={draftFrom} onChange={(v) => { setDraftFrom(v); setDraftPreset(""); }} />
+        </FilterField>
+        <FilterField label="To Date">
+          <FilterDateInput value={draftTo} onChange={(v) => { setDraftTo(v); setDraftPreset(""); }} />
+        </FilterField>
+      </FilterPanel>
 
       {/* Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">

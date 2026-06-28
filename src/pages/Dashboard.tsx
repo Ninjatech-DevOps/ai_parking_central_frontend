@@ -6,6 +6,7 @@ import { devicesApi, locationsApi, camerasApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
 import AnprDashboard from "@/pages/AnprDashboard";
+import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
 import {
   MapPin, ParkingSquare,
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Snapshot dialog state
   const [snapshotCam, setSnapshotCam] = useState<{ cam: CanvasCamera; locName: string } | null>(null);
@@ -36,30 +38,34 @@ export default function Dashboard() {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const devParams = deviceQueryParams ? `page_size=200&${deviceQueryParams}` : "page_size=200";
-    // Locations API doesn't accept location_id — use area_id filter when available
-    const locParams = (() => {
-      const p = new URLSearchParams({ page_size: "100" });
-      if (areaId) p.set("area_id", areaId);
-      else if (queryParams) return `page_size=100&${queryParams}`;
-      return p.toString();
-    })();
-    const [d, l] = await Promise.all([
-      devicesApi.list(devParams),
-      locationsApi.list(locParams),
-    ]);
-    setDevices(d.data.items || []);
+    try {
+      const devParams = deviceQueryParams ? `page_size=200&${deviceQueryParams}` : "page_size=200";
+      // Locations API doesn't accept location_id — use area_id filter when available
+      const locParams = (() => {
+        const p = new URLSearchParams({ page_size: "100" });
+        if (areaId) p.set("area_id", areaId);
+        else if (queryParams) return `page_size=100&${queryParams}`;
+        return p.toString();
+      })();
+      const [d, l] = await Promise.all([
+        devicesApi.list(devParams),
+        locationsApi.list(locParams),
+      ]);
+      setDevices(d.data.items || []);
 
-    // When a specific location is selected, only use that one
-    const locationsForCanvas = locationId
-      ? (l.data.items || []).filter((loc) => loc.id === locationId)
-      : (l.data.items || []);
-    setLocationsList(locationsForCanvas);
+      // When a specific location is selected, only use that one
+      const locationsForCanvas = locationId
+        ? (l.data.items || []).filter((loc) => loc.id === locationId)
+        : (l.data.items || []);
+      setLocationsList(locationsForCanvas);
 
-    const canvases = await Promise.all(
-      locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
-    );
-    setCanvasData(canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0));
+      const canvases = await Promise.all(
+        locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
+      );
+      setCanvasData(canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0));
+    } finally {
+      setLoading(false);
+    }
   }, [deviceQueryParams, queryParams, locationId, areaId]);
   usePolling(fetchData, 5000);
 
@@ -107,6 +113,8 @@ export default function Dashboard() {
     setSnapshotLoading(false);
   }
 
+  if (loading && canvasData.length === 0 && locationsList.length === 0) return <DashboardSkeleton />;
+
   return (
     <div className="w-full">
       {/* Header */}
@@ -148,7 +156,7 @@ export default function Dashboard() {
       ) : (
       <>
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 mb-8">
         <StatCard label="Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
         <StatCard label="Cameras" value={totalCameras} icon={Camera} bg="bg-blue-50" text="text-blue-600" />
         <StatCard label="Total Capacity" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />

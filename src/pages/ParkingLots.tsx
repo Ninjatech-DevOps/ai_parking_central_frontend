@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Plus, Pencil, Trash2, Search, MapPin, Eye } from "lucide-react";
+import ParkingLotsSkeleton from "@/components/skeletons/ParkingLotsSkeleton";
 import type { Location, City, Taluka, Village, Area } from "@/types/api";
 
 export default function Locations() {
@@ -24,6 +25,7 @@ export default function Locations() {
   const navigate = useNavigate();
   const { filterLabel, queryParams, cityId, areas: globalAreas } = useFilter();
   const [locations, setLocations] = useState<Location[]>([]); const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false); const [editing, setEditing] = useState<Location | null>(null);
   const [deleting, setDeleting] = useState<Location | null>(null); const [deleteLoading, setDeleteLoading] = useState(false);
@@ -75,9 +77,13 @@ export default function Locations() {
   // Filter areas by level — same logic as global filter
 
   const fetchLocations = useCallback(async () => {
-    const params = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
-    const { data } = await locationsApi.list(params);
-    setLocations(data.items || []); setTotal(data.total || 0);
+    try {
+      const params = queryParams ? `page_size=100&${queryParams}` : "page_size=100";
+      const { data } = await locationsApi.list(params);
+      setLocations(data.items || []); setTotal(data.total || 0);
+    } finally {
+      setLoading(false);
+    }
   }, [queryParams]);
   usePolling(fetchLocations, 15000);
 
@@ -126,6 +132,8 @@ export default function Locations() {
   }
 
   const filtered = locations.filter((l) => !search || l.name.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading && locations.length === 0) return <ParkingLotsSkeleton />;
 
   return (
     <div className="w-full">

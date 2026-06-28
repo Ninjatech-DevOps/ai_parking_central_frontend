@@ -3,6 +3,57 @@ import { useParams } from "react-router-dom";
 import { ParkingSquare, AlertTriangle, Car, Bike, Eye, Bug } from "lucide-react";
 import { publicViewApi } from "@/services/api";
 import type { PublicViewResponse } from "@/types/api";
+import { Skel } from "@/components/Skeleton";
+
+function PublicViewSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#f8f9fb]">
+      {/* Compact public top bar */}
+      <header className="bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+          <Skel className="w-8 h-8 rounded-xl" />
+          <div>
+            <Skel className="w-40 h-4 mb-1.5" />
+            <Skel className="w-24 h-2.5" />
+          </div>
+        </div>
+      </header>
+
+      {/* Summary boxes */}
+      <div className="px-4 sm:px-6 py-3 bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 gap-4 animate-pulse">
+          <Skel className="h-28 rounded-2xl" />
+          <Skel className="h-28 rounded-2xl" />
+        </div>
+      </div>
+
+      {/* Camera card placeholders */}
+      <main className="px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl card-shadow overflow-hidden animate-pulse">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                <Skel className="w-4 h-4 rounded" />
+                <Skel className="w-28 h-3.5" />
+              </div>
+              <div className="flex">
+                {/* Image rectangle */}
+                <div className="w-4/5 p-3">
+                  <Skel className="w-full h-56 rounded-lg" />
+                </div>
+                {/* Stats column */}
+                <div className="w-1/5 flex flex-col gap-3 p-4">
+                  <Skel className="flex-1 rounded-xl" />
+                  <Skel className="flex-1 rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 
 export default function PublicView() {
@@ -37,16 +88,7 @@ export default function PublicView() {
   }, [fetchData]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-teal-600/20 animate-pulse">
-            <ParkingSquare size={24} className="text-white" />
-          </div>
-          <p className="text-[14px] text-slate-500 font-medium">Loading parking data...</p>
-        </div>
-      </div>
-    );
+    return <PublicViewSkeleton />;
   }
 
   if (error) {

@@ -18,12 +18,15 @@ interface Props {
   drawingMode?: "polygon" | "rectangle" | "line";
   /** Optional line overlay: [[x1,y1],[x2,y2]] in original image coords */
   overlayLine?: number[][] | null;
+  /** Increment to cancel the in-progress drawing (clear current points) */
+  clearSignal?: number;
 }
 
 export type { SlotData };
 
-export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onSlotClick, drawingEnabled = true, drawingMode = "polygon", overlayLine }: Props) {
+export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onSlotClick, drawingEnabled = true, drawingMode = "polygon", overlayLine, clearSignal }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [points, setPoints] = useState<number[][]>([]);
   const [rectStart, setRectStart] = useState<number[] | null>(null);
   const [mousePos, setMousePos] = useState<number[] | null>(null);
@@ -41,11 +44,25 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
     img.onload = () => {
       imgRef.current = img;
       setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
-      const scale = Math.min(800 / img.naturalWidth, 600 / img.naturalHeight);
-      setCanvasSize({ w: Math.round(img.naturalWidth * scale), h: Math.round(img.naturalHeight * scale) });
       setImgLoaded(true);
     };
   }, [imageUrl]);
+
+  // Size the canvas to fill the container width (responsive), capped by a max height
+  useEffect(() => {
+    if (!imgLoaded || !imgRef.current) return;
+    const compute = () => {
+      const natW = imgRef.current!.naturalWidth;
+      const natH = imgRef.current!.naturalHeight;
+      const cw = containerRef.current?.clientWidth || 800;
+      const scale = Math.min(cw / natW, 900 / natH);
+      setCanvasSize({ w: Math.round(natW * scale), h: Math.round(natH * scale) });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [imgLoaded]);
 
   const scaleX = imgNatural.w / canvasSize.w;
   const scaleY = imgNatural.h / canvasSize.h;
@@ -299,20 +316,21 @@ export default function PolygonDrawer({ imageUrl, existingSlots, onComplete, onS
 
   useEffect(() => { if (!drawingEnabled) { setPoints([]); setRectStart(null); } }, [drawingEnabled]);
   useEffect(() => { setPoints([]); setRectStart(null); }, [drawingMode]);
+  useEffect(() => { setPoints([]); setRectStart(null); }, [clearSignal]);
 
   const borderColor = drawingEnabled ? "#93c5fd" : hoveredSlot ? "#fcd34d" : "#cbd5e1";
   const cursor = drawingEnabled ? "crosshair" : hoveredSlot ? "pointer" : "default";
 
   if (!imgLoaded) {
     return (
-      <div className="flex items-center justify-center bg-slate-100 rounded-xl" style={{ width: 800, height: 400 }}>
+      <div ref={containerRef} className="flex items-center justify-center bg-slate-100 rounded-xl w-full" style={{ height: 400 }}>
         <p className="text-[13px] text-slate-400">Loading snapshot...</p>
       </div>
     );
   }
 
   return (
-    <div tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
+    <div ref={containerRef} tabIndex={0} onKeyDown={handleKeyDown} className="w-full" style={{ outline: "none" }}>
       <canvas
         ref={canvasRef}
         width={canvasSize.w}

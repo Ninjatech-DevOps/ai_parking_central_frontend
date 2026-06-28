@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { ShieldCheck, Plus, Pencil, Trash2, Copy, Users, Lock } from "lucide-react";
+import RolesSkeleton from "@/components/skeletons/RolesSkeleton";
 import type { Role, PermissionItem } from "@/types/api";
 
 // ─── Group permissions by resource for the matrix ───
@@ -43,6 +44,7 @@ export default function Roles() {
   const canDelete = hasPermission("roles:delete");
   // ─── List ───
   const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
   const [allPermissions, setAllPermissions] = useState<PermissionItem[]>([]);
 
   // ─── Modal ───
@@ -67,8 +69,12 @@ export default function Roles() {
 
   // ─── Fetch roles ───
   const fetchRoles = useCallback(async () => {
-    const { data } = await rolesApi.list("page_size=50");
-    setRoles(data.items || []);
+    try {
+      const { data } = await rolesApi.list("page_size=50");
+      setRoles(data.items || []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
   usePolling(fetchRoles, 30000);
 
@@ -162,6 +168,8 @@ export default function Roles() {
       setDeleteLoading(false);
     }
   }
+
+  if (loading && roles.length === 0) return <RolesSkeleton />;
 
   return (
     <div className="w-full">

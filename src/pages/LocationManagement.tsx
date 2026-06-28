@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Plus, Pencil, Trash2, Globe, MapPin, Search } from "lucide-react";
+import LocationManagementSkeleton from "@/components/skeletons/LocationManagementSkeleton";
 import type { Area } from "@/types/api";
 
 export default function LocationManagement() {
@@ -20,6 +21,7 @@ export default function LocationManagement() {
   const canDelete = hasPermission("locations:delete");
   const { cityId, cityName } = useFilter();
   const [areas, setAreas] = useState<Area[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
 
@@ -31,11 +33,15 @@ export default function LocationManagement() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchAreas = useCallback(async () => {
-    if (!cityId) return;
-    const { data } = await areasApi.list(`city_id=${cityId}&page_size=500`);
-    const cityLevel = (data.items || []).filter((a: Area) => !a.taluka_id);
-    setAreas(cityLevel);
-    setTotal(cityLevel.length);
+    if (!cityId) { setLoading(false); return; }
+    try {
+      const { data } = await areasApi.list(`city_id=${cityId}&page_size=500`);
+      const cityLevel = (data.items || []).filter((a: Area) => !a.taluka_id);
+      setAreas(cityLevel);
+      setTotal(cityLevel.length);
+    } finally {
+      setLoading(false);
+    }
   }, [cityId]);
   usePolling(fetchAreas, 30000);
 
@@ -71,6 +77,8 @@ export default function LocationManagement() {
   }
 
   const filtered = areas.filter((a) => !search || a.name.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading && areas.length === 0) return <LocationManagementSkeleton />;
 
   return (
     <div className="w-full">

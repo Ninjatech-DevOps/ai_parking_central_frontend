@@ -10,20 +10,24 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import CameraCanvas from "@/components/CameraCanvas";
 import {
-  ArrowLeft, MapPin, Monitor, Camera, Eye, Plus, Pencil, Trash2,
+  ArrowLeft, MapPin, Monitor, Camera, Eye, Plus, Pencil, Trash2, ScanLine,
   Layers, Grid3x3, ParkingSquare, ChevronDown, ChevronRight,
 } from "lucide-react";
 import type {
   Location, Device, Camera as CameraType, Floor, Zone, ParkingSlot,
   CanvasResponse, AnprCameraConfig,
 } from "@/types/api";
+import ParkingLotDetailSkeleton from "@/components/skeletons/ParkingLotDetailSkeleton";
 
 type Tab = "structure" | "devices" | "live" | "overview";
 
 export default function ParkingLotDetail() {
   const { id } = useParams<{ id: string }>();
   const [location, setLocation] = useState<Location | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("structure");
+  const [cameraFilter, setCameraFilter] = useState<"ALL" | "AI_PARKING" | "ANPR">("ALL"); // client-side camera filter for the Devices tab
+  const [brokenFrames, setBrokenFrames] = useState<Set<string>>(new Set()); // ANPR frames whose image failed to load
 
   // Structure
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -62,6 +66,7 @@ export default function ParkingLotDetail() {
   const [showAnprConfig, setShowAnprConfig] = useState(false);
   const [anprConfigCamera, setAnprConfigCamera] = useState<CameraType | null>(null);
   const [anprConfig, setAnprConfig] = useState<AnprCameraConfig | null>(null);
+  const [anprConfigs, setAnprConfigs] = useState<Record<string, AnprCameraConfig | null>>({}); // per-camera ROI/trigger/direction for the list
   const [anprRoi, setAnprRoi] = useState("");
   const [anprTriggerLine, setAnprTriggerLine] = useState("");
   const [anprDirection, setAnprDirection] = useState<"IN" | "OUT">("IN");
@@ -125,7 +130,14 @@ export default function ParkingLotDetail() {
       setDevices(devItems);
       devItems.forEach((d) => {
         camerasApi.byDevice(d.id).then(({ data: camData }) => {
-          setCameras((prev) => ({ ...prev, [d.id]: camData.items || [] }));
+          const cams = camData.items || [];
+          setCameras((prev) => ({ ...prev, [d.id]: cams }));
+          // ANPR cameras carry ROI / trigger line / direction (no parking slots) — load each config
+          cams.filter((c) => (c as any).module_type === "ANPR").forEach((c) => {
+            anprConfigsApi.byCamera(c.id)
+              .then(({ data: cfg }) => setAnprConfigs((p) => ({ ...p, [c.id]: cfg })))
+              .catch(() => setAnprConfigs((p) => ({ ...p, [c.id]: null })));
+          });
         });
       });
     });
@@ -134,7 +146,7 @@ export default function ParkingLotDetail() {
   // Poll canvas
   const fetchCanvas = useCallback(async () => {
     if (!id) return;
-    try { const { data } = await locationsApi.canvas(id); setCanvas(data); } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); }
+    try { const { data } = await locationsApi.canvas(id); setCanvas(data); } catch (err: any) { showError(err?.response?.data?.detail || "Operation failed"); } finally { setLoading(false); }
   }, [id]);
   usePolling(fetchCanvas, 5000);
 
@@ -235,7 +247,11 @@ export default function ParkingLotDetail() {
   function openEditSlot(s: ParkingSlot) { setEditingId(s.id); setFormName(s.label); setFormSlotType(s.slot_type); setFormCapCar((s.capacity_car || 0).toString()); setFormCap2w((s.capacity_two_wheeler || 0).toString()); setShowSlotForm(true); }
   function openAddCamera(deviceId: string) { setEditingId(null); setFormDeviceId(deviceId); setFormName(""); setFormModuleType("AI_PARKING"); setShowCameraForm(true); }
 
+  if (loading && !location) return <ParkingLotDetailSkeleton />;
   if (!location) return <div className="p-8 text-slate-400">Loading...</div>;
+
+  // IDs of ANPR cameras (no parking slots) — used to render Live View differently
+  const anprCameraIds = new Set(Object.values(cameras).flat().filter((c) => c.module_type === "ANPR").map((c) => c.id));
 
   const totalSlots = canvas?.cameras.reduce((s, c) => s + c.slots.reduce((sum, x) => sum + ((x.capacity_car || 0) + (x.capacity_two_wheeler || 0) || 1), 0), 0) || 0;
   const vehicleSlots = canvas?.cameras.reduce((s, c) => s + c.slots.reduce((sum, x) => sum + (x.occupied_car || 0) + (x.occupied_two_wheeler || 0), 0), 0) || 0;
@@ -393,8 +409,27 @@ export default function ParkingLotDetail() {
               <Monitor size={32} className="text-slate-200 mx-auto mb-3" />
               <p className="text-[13px] text-slate-400">No devices assigned to this parking location</p>
             </div>
-          ) : devices.map((d) => {
-            const devCameras = cameras[d.id] || [];
+          ) : (
+          <>
+            {/* Module filter (client-side) */}
+            <div className="flex items-center bg-slate-100 rounded-xl p-1 w-fit">
+              {([
+                { key: "ALL", label: "All" },
+                { key: "AI_PARKING", label: "AI Parking" },
+                { key: "ANPR", label: "ANPR" },
+              ] as const).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setCameraFilter(f.key)}
+                  className={`px-3.5 h-8 rounded-lg text-[12px] font-semibold transition-colors ${cameraFilter === f.key ? "bg-white text-teal-600 card-shadow" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {devices.map((d) => {
+            const devCameras = (cameras[d.id] || []).filter((c) => cameraFilter === "ALL" || c.module_type === cameraFilter);
+            if (cameraFilter !== "ALL" && devCameras.length === 0) return null;
             return (
               <div key={d.id} className="bg-white rounded-2xl card-shadow p-5">
                 <div className="flex items-center justify-between mb-4">
@@ -405,92 +440,76 @@ export default function ParkingLotDetail() {
                       <p className="text-[11px] text-slate-400">{d.ip_address || "No IP"} · {d.docker_image_version || "No version"}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[11px] font-bold uppercase tracking-wider rounded-lg px-2.5 py-1 ${d.status === "ONLINE" ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{d.status}</span>
-                    <Button onClick={() => openAddCamera(d.id)} className="h-8 rounded-lg bg-teal-600 hover:bg-teal-700 text-[11px] font-semibold gap-1.5"><Plus size={12} /> Add Camera</Button>
-                  </div>
+                  <span className={`text-[11px] font-bold uppercase tracking-wider rounded-lg px-2.5 py-1 ${d.status === "ONLINE" ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{d.status}</span>
                 </div>
 
                 {devCameras.length === 0 ? (
-                  <p className="text-[12px] text-slate-400 bg-slate-50 rounded-xl p-4 text-center">No cameras. Click "Add Camera" to register one.</p>
+                  <p className="text-[12px] text-slate-400 bg-slate-50 rounded-xl p-4 text-center">No cameras.</p>
                 ) : (
                   <div className="space-y-3">
                     {devCameras.map((c) => {
-                      // Get all slots across all zones for this location
+                      const isAnprCam = (c as any).module_type === "ANPR";
                       const allSlots = Object.values(slots).flat();
                       const assignedSlots = allSlots.filter((s) => s.camera_id === c.id);
-                      const unassignedSlots = allSlots.filter((s) => !s.camera_id);
+                      const cfg = anprConfigs[c.id];
+                      const roiSet = !!(cfg && cfg.roi_coords);
+                      const triggerSet = !!(cfg && cfg.trigger_line);
 
                       return (
                         <div key={c.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <Camera size={14} className="text-teal-500" />
-                              <span className="text-[13px] font-bold text-slate-700">{c.position_label}</span>
-                              <span className={`w-1.5 h-1.5 rounded-full ${c.status === "ACTIVE" ? "bg-emerald-500" : "bg-red-500"}`} />
-                              <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${
-                                (c as any).module_type === "ANPR" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
-                              }`}>
-                                {(c as any).module_type === "ANPR" ? "ANPR" : "Parking"}
-                              </span>
-                            </div>
-                            <div className="flex gap-1">
-                              {(c as any).module_type === "ANPR" && (
-                                <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-violet-50 hover:text-violet-600"
-                                  onClick={() => { setAnprConfigCamera(c); setShowAnprConfig(true); }}
-                                  title="ANPR Config (ROI + Trigger Line)">
-                                  <Eye size={11} />
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-slate-100"
-                                onClick={() => { setEditingId(c.id); setFormName(c.position_label); setFormModuleType((c as any).module_type || "AI_PARKING"); setFormDeviceId(d.id); setShowCameraForm(true); }}
-                                title="Edit camera">
-                                <Pencil size={11} />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-red-50 hover:text-red-600" onClick={() => setDeleting({ id: c.id, name: c.position_label, type: "camera" })}><Trash2 size={11} /></Button>
-                            </div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Camera size={14} className={isAnprCam ? "text-violet-500" : "text-teal-500"} />
+                            <span className="text-[13px] font-bold text-slate-700">{c.position_label}</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${c.status === "ACTIVE" ? "bg-emerald-500" : "bg-red-500"}`} />
+                            <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${
+                              isAnprCam ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                            }`}>
+                              {isAnprCam ? "ANPR" : "Parking"}
+                            </span>
                           </div>
 
-                          {/* Assigned slots */}
-                          <div className="mb-3">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assigned Slots ({assignedSlots.length})</p>
-                            {assignedSlots.length === 0 ? (
-                              <p className="text-[11px] text-slate-400">No slots assigned</p>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {assignedSlots.map((s) => (
-                                  <span key={s.id} className={`inline-flex items-center gap-1 text-[10px] font-bold rounded-md px-2 py-1 ${
-                                    s.state === "VEHICLE" ? "bg-red-100 text-red-700" :
-                                    s.state === "OBSTRUCTED" ? "bg-amber-100 text-amber-700" :
-                                    "bg-emerald-100 text-emerald-700"
-                                  }`}>
-                                    {s.label}
-                                    <button onClick={async () => {
-                                      await slotsApi.update(s.id, { camera_id: null } as any);
-                                      slotsApi.list(`zone_id=${s.zone_id}&page_size=200`).then(({ data: d2 }) => setSlots((p) => ({ ...p, [s.zone_id]: d2.items })));
-                                      showSuccess(`${s.label} unassigned`);
-                                    }} className="hover:text-red-900 ml-0.5">×</button>
-                                  </span>
-                                ))}
+                          {/* Common camera details */}
+                          <p className="text-[11px] text-slate-400 mb-3 truncate">
+                            {c.camera_type || "—"}{c.frame_width ? ` · ${c.frame_width}×${c.frame_height}` : ""}{c.source ? ` · ${c.source}` : ""}
+                          </p>
+
+                          {isAnprCam ? (
+                            /* ANPR — ROI / Trigger Line / Direction (no parking slots) */
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg bg-white border border-slate-100 px-2.5 py-2">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Direction</p>
+                                <span className={`text-[11px] font-bold ${cfg?.direction === "OUT" ? "text-red-600" : cfg ? "text-blue-600" : "text-slate-400"}`}>
+                                  {cfg ? (cfg.direction === "OUT" ? "OUT (Exit)" : "IN (Entry)") : "—"}
+                                </span>
                               </div>
-                            )}
-                          </div>
-
-                          {/* Assign unassigned slots */}
-                          {unassignedSlots.length > 0 && (
+                              <div className="rounded-lg bg-white border border-slate-100 px-2.5 py-2">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">ROI</p>
+                                <span className={`text-[11px] font-bold ${roiSet ? "text-emerald-600" : "text-slate-400"}`}>{roiSet ? "Configured" : "Not set"}</span>
+                              </div>
+                              <div className="rounded-lg bg-white border border-slate-100 px-2.5 py-2">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trigger Line</p>
+                                <span className={`text-[11px] font-bold ${triggerSet ? "text-violet-600" : "text-slate-400"}`}>{triggerSet ? "Set" : "Not set"}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            /* AI Parking — assigned parking slots */
                             <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Unassigned Slots — click to assign</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {unassignedSlots.map((s) => (
-                                  <button key={s.id} onClick={async () => {
-                                    await slotsApi.update(s.id, { camera_id: c.id } as any);
-                                    slotsApi.list(`zone_id=${s.zone_id}&page_size=200`).then(({ data: d2 }) => setSlots((p) => ({ ...p, [s.zone_id]: d2.items })));
-                                    showSuccess(`${s.label} → ${c.position_label}`);
-                                  }} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-md px-2 py-1 hover:border-teal-300 hover:text-teal-600 transition-colors">
-                                    + {s.label}
-                                  </button>
-                                ))}
-                              </div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assigned Slots ({assignedSlots.length})</p>
+                              {assignedSlots.length === 0 ? (
+                                <p className="text-[11px] text-slate-400">No slots assigned</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {assignedSlots.map((s) => (
+                                    <span key={s.id} className={`inline-flex items-center gap-1 text-[10px] font-bold rounded-md px-2 py-1 ${
+                                      s.state === "VEHICLE" ? "bg-red-100 text-red-700" :
+                                      s.state === "OBSTRUCTED" ? "bg-amber-100 text-amber-700" :
+                                      "bg-emerald-100 text-emerald-700"
+                                    }`}>
+                                      {s.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -501,6 +520,8 @@ export default function ParkingLotDetail() {
               </div>
             );
           })}
+          </>
+          )}
         </div>
       )}
 
@@ -509,9 +530,43 @@ export default function ParkingLotDetail() {
         <div>
           {canvas && canvas.cameras.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {canvas.cameras.map((cam) => (
-                <CameraCanvas key={cam.id} camera={cam} />
-              ))}
+              {canvas.cameras.map((cam) => {
+                const isAnprCam = anprCameraIds.has(cam.id);
+                if (!isAnprCam) return <CameraCanvas key={cam.id} camera={cam} />;
+                // ANPR camera — no parking slots; show a clean ANPR card instead of the slot canvas
+                return (
+                  <div key={cam.id} className="bg-white rounded-2xl card-shadow overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[14px] font-bold text-slate-800">{cam.position_label}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-violet-100 text-violet-700">ANPR</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Entry / exit detection</p>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider rounded-lg px-2 py-1 ${cam.status === "ACTIVE" ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{cam.status}</span>
+                    </div>
+                    <div className="flex-1 min-h-[360px] bg-slate-50 flex items-center justify-center">
+                      {cam.clean_frame_url && !brokenFrames.has(cam.id) ? (
+                        <img
+                          src={cam.clean_frame_url}
+                          alt={cam.position_label}
+                          className="w-full h-full object-contain"
+                          onError={() => setBrokenFrames((s) => new Set(s).add(cam.id))}
+                        />
+                      ) : (
+                        <div className="text-center px-6">
+                          <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-3">
+                            <ScanLine size={26} className="text-violet-400" />
+                          </div>
+                          <p className="text-[14px] font-semibold text-slate-600">ANPR detection camera</p>
+                          <p className="text-[12px] text-slate-400 mt-0.5">Monitors vehicle entry / exit — no parking slots</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="bg-white rounded-2xl card-shadow p-16 text-center">

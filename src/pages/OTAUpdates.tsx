@@ -14,6 +14,7 @@ import {
   Download, RotateCcw, Info, Search, Monitor, CheckCircle2,
   XCircle, Clock, Loader2, GitBranch, ChevronDown,
 } from "lucide-react";
+import OTAUpdatesSkeleton from "@/components/skeletons/OTAUpdatesSkeleton";
 import type { Device, DeviceCommand } from "@/types/api";
 
 type VersionInfo = {
@@ -29,6 +30,7 @@ export default function OTAUpdates() {
   const canUpdate = hasPermission("devices:update");
 
   const [devices, setDevices] = useState<Device[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -53,13 +55,17 @@ export default function OTAUpdates() {
   const { deviceQueryParams } = useFilter();
 
   const fetchDevices = useCallback(async () => {
-    const p = new URLSearchParams({ page: "1", page_size: "200" });
-    if (deviceQueryParams) {
-      new URLSearchParams(deviceQueryParams).forEach((v, k) => p.set(k, v));
+    try {
+      const p = new URLSearchParams({ page: "1", page_size: "200" });
+      if (deviceQueryParams) {
+        new URLSearchParams(deviceQueryParams).forEach((v, k) => p.set(k, v));
+      }
+      const { data } = await devicesApi.list(p.toString());
+      setDevices(data.items || []);
+      setTotal(data.total || 0);
+    } finally {
+      setInitialLoading(false);
     }
-    const { data } = await devicesApi.list(p.toString());
-    setDevices(data.items || []);
-    setTotal(data.total || 0);
   }, [deviceQueryParams]);
   usePolling(fetchDevices, 10000);
 
@@ -222,6 +228,8 @@ export default function OTAUpdates() {
     };
     return colors[status] || "text-slate-500 bg-slate-100";
   }
+
+  if (initialLoading && devices.length === 0) return <OTAUpdatesSkeleton />;
 
   return (
     <div className="w-full">

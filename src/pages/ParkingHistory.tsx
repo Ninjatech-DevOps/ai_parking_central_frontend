@@ -4,8 +4,22 @@ import { useFilter } from "@/contexts/FilterContext";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import SearchSelect from "@/components/SearchSelect";
-import { ParkingSquare, Car, Timer, SlidersHorizontal, RotateCcw, ChevronDown, Image as ImageIcon, X } from "lucide-react";
+import { ParkingSquare, Car, Timer, Image as ImageIcon, X } from "lucide-react";
+import { FilterToolbar, FilterPanel, LiveBadge } from "@/components/FilterPanel";
 import type { ParkingSession, Location, Area } from "@/types/api";
+import { SkeletonShell, SkeletonHeader, SkeletonFilterBar, SkeletonTable } from "@/components/Skeleton";
+
+function ParkingHistorySkeleton() {
+  return (
+    <SkeletonShell>
+      <SkeletonHeader action={false} />
+      {/* Filters: area, location, camera, status, type, duration, from, to */}
+      <SkeletonFilterBar selects={7} />
+      {/* Sessions table: Slot, Image, Type, Vehicle, Area, Location, Camera, Entry, Exit, Duration, Status */}
+      <SkeletonTable rows={8} cols={11} />
+    </SkeletonShell>
+  );
+}
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) return "\u2014";
@@ -49,22 +63,34 @@ export default function ParkingHistory() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // Draft filter values (edited in the panel, committed on Apply)
+  const [draftArea, setDraftArea] = useState("");
+  const [draftLocation, setDraftLocation] = useState("");
+  const [draftCamera, setDraftCamera] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+  const [draftEventType, setDraftEventType] = useState("");
+  const [draftMinDuration, setDraftMinDuration] = useState("");
+  const [draftMaxDuration, setDraftMaxDuration] = useState("");
+  const [draftDurationUnit, setDraftDurationUnit] = useState<"min" | "hr">("min");
+  const [draftStartDate, setDraftStartDate] = useState("");
+  const [draftEndDate, setDraftEndDate] = useState("");
+
   // Fetch filter options
   useEffect(() => {
     areasApi.list("page_size=500").then(({ data }) => setAreas(data.items || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
-    const locParams = selectedArea
-      ? `area_id=${selectedArea}&page_size=200`
+    const locParams = draftArea
+      ? `area_id=${draftArea}&page_size=200`
       : `${queryParams}&page_size=200`;
     locationsApi.list(locParams).then(({ data }) => setLocations(data.items || [])).catch(() => {});
-  }, [queryParams, selectedArea]);
+  }, [queryParams, draftArea]);
 
   // Build camera options with location context
   useEffect(() => {
-    if (selectedLocation) {
-      locationsApi.canvas(selectedLocation).then(({ data }) => {
+    if (draftLocation) {
+      locationsApi.canvas(draftLocation).then(({ data }) => {
         const cams = (data.cameras || []).map((c: { id: string; position_label: string }) => ({
           value: c.id,
           label: c.position_label,
@@ -88,8 +114,7 @@ export default function ParkingHistory() {
     } else {
       setCameraOptions([]);
     }
-    setSelectedCamera("");
-  }, [selectedLocation, locations]);
+  }, [draftLocation, locations]);
 
   // Convert duration inputs to minutes for API
   const durationMultiplier = durationUnit === "hr" ? 60 : 1;
@@ -141,190 +166,162 @@ export default function ParkingHistory() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const activeFilterCount = [selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, minDuration || maxDuration, startDate, endDate].filter(Boolean).length;
-  const hasActiveFilters = activeFilterCount > 0;
+  const isLive = !startDate && !endDate;
 
-  function clearAllFilters() {
-    setSelectedArea("");
-    setSelectedLocation("");
-    setSelectedCamera("");
-    setSelectedStatus("");
-    setSelectedEventType("");
-    setMinDuration("");
-    setMaxDuration("");
-    setStartDate("");
-    setEndDate("");
-    setPage(1);
+  function openFilters() {
+    setDraftArea(selectedArea); setDraftLocation(selectedLocation); setDraftCamera(selectedCamera);
+    setDraftStatus(selectedStatus); setDraftEventType(selectedEventType);
+    setDraftMinDuration(minDuration); setDraftMaxDuration(maxDuration); setDraftDurationUnit(durationUnit);
+    setDraftStartDate(startDate); setDraftEndDate(endDate);
+    setFiltersOpen(true);
+  }
+  function applyFilters() {
+    setSelectedArea(draftArea); setSelectedLocation(draftLocation); setSelectedCamera(draftCamera);
+    setSelectedStatus(draftStatus); setSelectedEventType(draftEventType);
+    setMinDuration(draftMinDuration); setMaxDuration(draftMaxDuration); setDurationUnit(draftDurationUnit);
+    setStartDate(draftStartDate); setEndDate(draftEndDate);
+    setPage(1); setFiltersOpen(false);
+  }
+  function clearFilters() {
+    setDraftArea(""); setDraftLocation(""); setDraftCamera(""); setDraftStatus(""); setDraftEventType("");
+    setDraftMinDuration(""); setDraftMaxDuration(""); setDraftDurationUnit("min"); setDraftStartDate(""); setDraftEndDate("");
+    setSelectedArea(""); setSelectedLocation(""); setSelectedCamera(""); setSelectedStatus(""); setSelectedEventType("");
+    setMinDuration(""); setMaxDuration(""); setDurationUnit("min"); setStartDate(""); setEndDate(""); setPage(1);
   }
 
   // When blocked/cleared is selected, disable the type filter (it's implied)
-  const typeFilterDisabled = selectedStatus === "blocked" || selectedStatus === "cleared";
+  const typeFilterDisabled = draftStatus === "blocked" || draftStatus === "cleared";
+
+  if (loading && sessions.length === 0) return <ParkingHistorySkeleton />;
 
   return (
     <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">Parking History</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[20px] font-bold text-slate-900">Parking History</h1>
+            {isLive && <LiveBadge />}
+          </div>
           <p className="text-[12px] text-slate-400 mt-0.5">
             {total} sessions{activeSessions > 0 && <> &middot; {activeSessions} currently parked</>}
           </p>
         </div>
       </div>
 
-      {/* Filters — collapsible */}
-      <div className="bg-white rounded-2xl card-shadow mb-5 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((o) => !o)}
-          className="flex items-center justify-between w-full px-5 py-3 hover:bg-slate-50/60 transition-colors"
-        >
-          <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-500">
-            <SlidersHorizontal size={13} />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="bg-teal-600 text-white text-[10px] font-bold rounded-full w-[18px] h-[18px] flex items-center justify-center">{activeFilterCount}</span>
-            )}
+      {/* Filters button */}
+      <FilterToolbar filterCount={activeFilterCount} onOpen={openFilters} />
+
+      {/* Inline Filter panel (draft → Apply) */}
+      <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearFilters}>
+        <FilterField label="Area">
+          <SearchSelect
+            options={[{ value: "", label: "All Areas" }, ...areas.map((a) => ({ value: a.id, label: a.name }))]}
+            value={draftArea}
+            onValueChange={(v) => { setDraftArea(v); setDraftLocation(""); setDraftCamera(""); }}
+            placeholder="All Areas"
+            className="w-full"
+          />
+        </FilterField>
+
+        <FilterField label="Location">
+          <SearchSelect
+            options={[{ value: "", label: "All Locations" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]}
+            value={draftLocation}
+            onValueChange={(v) => { setDraftLocation(v); setDraftCamera(""); }}
+            placeholder="All Locations"
+            className="w-full"
+          />
+        </FilterField>
+
+        <FilterField label="Camera">
+          <SearchSelect
+            options={[{ value: "", label: "All Cameras" }, ...cameraOptions]}
+            value={draftCamera}
+            onValueChange={(v) => setDraftCamera(v)}
+            placeholder="All Cameras"
+            className="w-full"
+          />
+        </FilterField>
+
+        <FilterField label="Status">
+          <SearchSelect
+            options={[
+              { value: "", label: "All Statuses" },
+              { value: "parked", label: "Parked" },
+              { value: "completed", label: "Completed" },
+              { value: "blocked", label: "Blocked" },
+              { value: "cleared", label: "Cleared" },
+            ]}
+            value={draftStatus}
+            onValueChange={(v) => setDraftStatus(v)}
+            placeholder="All Statuses"
+            className="w-full"
+          />
+        </FilterField>
+
+        <FilterField label="Type">
+          <SearchSelect
+            options={[
+              { value: "", label: "All Types" },
+              { value: "VEHICLE", label: "Vehicle" },
+              { value: "OBSTRUCTED", label: "Obstructed" },
+            ]}
+            value={typeFilterDisabled ? "" : draftEventType}
+            onValueChange={(v) => setDraftEventType(v)}
+            placeholder={typeFilterDisabled ? "Set by status" : "All Types"}
+            className={`w-full ${typeFilterDisabled ? "opacity-40 pointer-events-none" : ""}`}
+          />
+        </FilterField>
+
+        <FilterField label="Duration">
+          <div className="flex items-center h-10 rounded-lg border border-slate-200 bg-white overflow-hidden">
+            <input
+              type="number" min="0" value={draftMinDuration}
+              onChange={(e) => setDraftMinDuration(e.target.value)}
+              placeholder="Min"
+              className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span className="text-[10px] text-slate-300 shrink-0">to</span>
+            <input
+              type="number" min="0" value={draftMaxDuration}
+              onChange={(e) => setDraftMaxDuration(e.target.value)}
+              placeholder="Max"
+              className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <select
+              value={draftDurationUnit}
+              onChange={(e) => setDraftDurationUnit(e.target.value as "min" | "hr")}
+              className="h-full border-l border-slate-200 px-1.5 text-[11px] text-slate-500 bg-slate-50 focus:outline-none cursor-pointer"
+            >
+              <option value="min">min</option>
+              <option value="hr">hrs</option>
+            </select>
           </div>
-          <div className="flex items-center gap-3">
-            {hasActiveFilters && (
-              <span
-                role="button"
-                onClick={(e) => { e.stopPropagation(); clearAllFilters(); }}
-                className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
-              >
-                <RotateCcw size={10} />
-                Reset
-              </span>
-            )}
-            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${filtersOpen ? "rotate-180" : ""}`} />
-          </div>
-        </button>
+        </FilterField>
 
-        <div className={`grid transition-all duration-200 ease-in-out ${filtersOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-          <div className="overflow-hidden">
-            <div className="border-t border-slate-100 px-5 py-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
-                <FilterField label="Area">
-                  <SearchSelect
-                    options={[{ value: "", label: "All Areas" }, ...areas.map((a) => ({ value: a.id, label: a.name }))]}
-                    value={selectedArea}
-                    onValueChange={(v) => { setSelectedArea(v); setSelectedLocation(""); setSelectedCamera(""); setPage(1); }}
-                    placeholder="All Areas"
-                    className="w-full"
-                  />
-                </FilterField>
+        <FilterField label="From">
+          <input
+            type="datetime-local" value={draftStartDate}
+            onChange={(e) => setDraftStartDate(e.target.value)}
+            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+          />
+        </FilterField>
 
-                <FilterField label="Location">
-                  <SearchSelect
-                    options={[{ value: "", label: "All Locations" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]}
-                    value={selectedLocation}
-                    onValueChange={(v) => { setSelectedLocation(v); setSelectedCamera(""); setPage(1); }}
-                    placeholder="All Locations"
-                    className="w-full"
-                  />
-                </FilterField>
-
-                <FilterField label="Camera">
-                  <SearchSelect
-                    options={[{ value: "", label: "All Cameras" }, ...cameraOptions]}
-                    value={selectedCamera}
-                    onValueChange={(v) => { setSelectedCamera(v); setPage(1); }}
-                    placeholder="All Cameras"
-                    className="w-full"
-                  />
-                </FilterField>
-
-                <FilterField label="Status">
-                  <SearchSelect
-                    options={[
-                      { value: "", label: "All Statuses" },
-                      { value: "parked", label: "Parked" },
-                      { value: "completed", label: "Completed" },
-                      { value: "blocked", label: "Blocked" },
-                      { value: "cleared", label: "Cleared" },
-                    ]}
-                    value={selectedStatus}
-                    onValueChange={(v) => { setSelectedStatus(v); setPage(1); }}
-                    placeholder="All Statuses"
-                    className="w-full"
-                  />
-                </FilterField>
-
-                <FilterField label="Type">
-                  <SearchSelect
-                    options={[
-                      { value: "", label: "All Types" },
-                      { value: "VEHICLE", label: "Vehicle" },
-                      { value: "OBSTRUCTED", label: "Obstructed" },
-                    ]}
-                    value={typeFilterDisabled ? "" : selectedEventType}
-                    onValueChange={(v) => { setSelectedEventType(v); setPage(1); }}
-                    placeholder={typeFilterDisabled ? "Set by status" : "All Types"}
-                    className={`w-full ${typeFilterDisabled ? "opacity-40 pointer-events-none" : ""}`}
-                  />
-                </FilterField>
-
-                <FilterField label="Duration">
-                  <div className="flex items-center h-9 rounded-lg border border-slate-200 bg-white overflow-hidden">
-                    <input
-                      type="number"
-                      min="0"
-                      value={minDuration}
-                      onChange={(e) => { setMinDuration(e.target.value); setPage(1); }}
-                      placeholder="Min"
-                      className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <span className="text-[10px] text-slate-300 shrink-0">to</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={maxDuration}
-                      onChange={(e) => { setMaxDuration(e.target.value); setPage(1); }}
-                      placeholder="Max"
-                      className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <select
-                      value={durationUnit}
-                      onChange={(e) => setDurationUnit(e.target.value as "min" | "hr")}
-                      className="h-full border-l border-slate-200 px-1.5 text-[11px] text-slate-500 bg-slate-50 focus:outline-none cursor-pointer"
-                    >
-                      <option value="min">min</option>
-                      <option value="hr">hrs</option>
-                    </select>
-                  </div>
-                </FilterField>
-
-                <FilterField label="From">
-                  <input
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-                    className="w-full h-9 rounded-lg border border-slate-200 px-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                  />
-                </FilterField>
-
-                <FilterField label="To">
-                  <input
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-                    className="w-full h-9 rounded-lg border border-slate-200 px-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                  />
-                </FilterField>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        <FilterField label="To">
+          <input
+            type="datetime-local" value={draftEndDate}
+            onChange={(e) => setDraftEndDate(e.target.value)}
+            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+          />
+        </FilterField>
+      </FilterPanel>
 
       {/* Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
         {loading && sessions.length > 0 && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-            <div className="flex items-center gap-3 bg-white rounded-xl card-shadow px-5 py-3">
-              <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-[13px] font-semibold text-slate-600">Loading...</span>
-            </div>
+          <div className="absolute inset-0 z-10">
+            <SkeletonTable rows={sessions.length} cols={11} />
           </div>
         )}
         <div className="overflow-x-auto">
@@ -337,9 +334,7 @@ export default function ParkingHistory() {
               </tr>
             </thead>
             <tbody>
-              {loading && sessions.length === 0 ? (
-                <tr><td colSpan={11} className="text-center py-16 text-[13px] text-slate-400">Loading...</td></tr>
-              ) : sessions.length === 0 ? (
+              {sessions.length === 0 ? (
                 <tr><td colSpan={11} className="text-center py-16">
                   <Car size={28} className="text-slate-200 mx-auto mb-2" />
                   <p className="text-[13px] text-slate-400">No parking sessions found</p>
@@ -484,8 +479,8 @@ export default function ParkingHistory() {
 
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col">
-      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</label>
+    <div>
+      <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">{label}</label>
       {children}
     </div>
   );

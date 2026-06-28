@@ -5,9 +5,27 @@ import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
   Download, FileSpreadsheet, FileText,
-  SlidersHorizontal, X, Loader2, Image as ImageIcon, Clock,
+  X, Loader2, Image as ImageIcon, Clock,
 } from "lucide-react";
+import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { ParkingScan } from "@/types/api";
+import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
+
+function ParkingScanHistorySkeleton() {
+  return (
+    <SkeletonShell>
+      <SkeletonHeader action />
+      {/* Date-range / filter row */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 animate-pulse">
+        <Skel className="w-72 h-10 rounded-xl" />
+        <Skel className="w-44 h-10 rounded-xl" />
+        <Skel className="w-44 h-10 rounded-xl" />
+      </div>
+      {/* Table: Date/Time/Image/Location/Device/Car Occ·Avail·Total/2W Occ·Avail·Total */}
+      <SkeletonTable rows={8} cols={11} />
+    </SkeletonShell>
+  );
+}
 
 const DATE_PRESETS = [
   { label: "Today", key: "today" },
@@ -56,11 +74,27 @@ export default function ParkingScanHistory() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const [showFilters, setShowFilters] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Draft values edited inside the filter modal; applied on "Apply Filters"
+  const [draftPreset, setDraftPreset] = useState("today");
+  const [draftFrom, setDraftFrom] = useState("");
+  const [draftTo, setDraftTo] = useState("");
+  function openFilters() {
+    setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo); setFiltersOpen(true);
+  }
+  function applyFilters() {
+    setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo); setPage(1); setFiltersOpen(false);
+  }
+  function clearDraft() {
+    setDraftPreset("today"); setDraftFrom(""); setDraftTo("");
+    resetFilters(); // also apply the cleared state so the table refreshes
+  }
 
   function buildParams() {
     const p = new URLSearchParams();
@@ -118,12 +152,25 @@ export default function ParkingScanHistory() {
     downloadFile(url, `parking_history_${ts}.${ext}`);
   }
 
+  if (loading && scans.length === 0) return <ParkingScanHistorySkeleton />;
+
+  const q = search.trim().toLowerCase();
+  const visibleScans = q
+    ? scans.filter((s) => (s.location_name || "").toLowerCase().includes(q) || (s.device_name || "").toLowerCase().includes(q))
+    : scans;
+
+  // "Today" view auto-refreshes (polling) — show a live indicator
+  const isLive = datePreset === "today" && !customFrom && !customTo;
+
   return (
     <div className="w-full">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-slate-900">AI Parking History</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[22px] font-bold text-slate-900">AI Parking History</h1>
+            {isLive && <LiveBadge />}
+          </div>
           <p className="text-[13px] text-slate-400 mt-0.5">Detection scan records — one row per scan cycle</p>
         </div>
         <div className="flex items-center gap-2">
@@ -139,58 +186,24 @@ export default function ParkingScanHistory() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl card-shadow mb-6 overflow-hidden">
-        <button onClick={() => setShowFilters(!showFilters)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={14} className="text-slate-400" />
-            <span className="text-[13px] font-semibold text-slate-700">Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-            )}
-          </div>
-          {activeFilterCount > 0 && (
-            <button onClick={(e) => { e.stopPropagation(); resetFilters(); }} className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1">
-              <X size={11} /> Reset
-            </button>
-          )}
-        </button>
+      {/* Search (separate) + Filters button */}
+      <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location or device..." filterCount={activeFilterCount} onOpen={openFilters} />
 
-        <div className={`grid transition-all duration-300 ${showFilters ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-          <div className="overflow-hidden">
-            <div className="px-5 pb-4 pt-1 flex flex-wrap items-end gap-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Quick Date</label>
-                <div className="flex gap-1">
-                  {DATE_PRESETS.map((dp) => (
-                    <button
-                      key={dp.key}
-                      onClick={() => { setDatePreset(dp.key); setCustomFrom(""); setCustomTo(""); }}
-                      className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
-                        datePreset === dp.key && !customFrom && !customTo
-                          ? "bg-teal-600 text-white"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
-                    >
-                      {dp.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="w-44">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">From</label>
-                <input type="datetime-local" value={customFrom} onChange={(e) => { setCustomFrom(e.target.value); setDatePreset(""); }}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400" />
-              </div>
-              <div className="w-44">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">To</label>
-                <input type="datetime-local" value={customTo} onChange={(e) => { setCustomTo(e.target.value); setDatePreset(""); }}
-                  className="w-full h-8 px-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Inline Filter panel */}
+      <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearDraft}>
+        <FilterField label="Quick Range">
+          <FilterSelect value={draftFrom || draftTo ? "" : draftPreset} onChange={(v) => { setDraftPreset(v); setDraftFrom(""); setDraftTo(""); }}>
+            <option value="" disabled>Custom range</option>
+            {DATE_PRESETS.map((dp) => <option key={dp.key} value={dp.key}>{dp.label}</option>)}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="From Date">
+          <FilterDateInput value={draftFrom} onChange={(v) => { setDraftFrom(v); setDraftPreset(""); }} />
+        </FilterField>
+        <FilterField label="To Date">
+          <FilterDateInput value={draftTo} onChange={(v) => { setDraftTo(v); setDraftPreset(""); }} />
+        </FilterField>
+      </FilterPanel>
 
       {/* Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
@@ -218,7 +231,7 @@ export default function ParkingScanHistory() {
               </tr>
             </thead>
             <tbody>
-              {scans.length === 0 && !loading ? (
+              {visibleScans.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={11} className="text-center py-16 text-slate-400">
                     <div className="flex flex-col items-center">
@@ -230,7 +243,7 @@ export default function ParkingScanHistory() {
                     </div>
                   </td>
                 </tr>
-              ) : scans.map((s, idx) => (
+              ) : visibleScans.map((s, idx) => (
                 <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                   <td className="px-6 py-3">
                     <span className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</span>

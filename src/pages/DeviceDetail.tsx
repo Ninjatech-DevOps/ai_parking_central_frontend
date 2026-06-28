@@ -15,6 +15,7 @@ import {
   Monitor, Wifi, WifiOff, ParkingSquare, ScanLine,
 } from "lucide-react";
 import type { Device, Camera, ParkingSlot } from "@/types/api";
+import DeviceDetailSkeleton from "@/components/skeletons/DeviceDetailSkeleton";
 
 /** Increment trailing number in a label: "B11" → "B12", "A-01" → "A-02", "Slot 5" → "Slot 6" */
 function incrementLabel(label: string): string {
@@ -29,6 +30,7 @@ export default function DeviceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [device, setDevice] = useState<Device | null>(null);
+  const [loading, setLoading] = useState(true);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [slots, setSlots] = useState<ParkingSlot[]>([]);
@@ -62,14 +64,19 @@ export default function DeviceDetail() {
   const [anprDrawMode, setAnprDrawMode] = useState<"" | "roi" | "line">("");
   const [anprRoi, setAnprRoi] = useState<number[][]>([]);
   const [anprLine, setAnprLine] = useState<number[][]>([]);
+  const [clearSignal, setClearSignal] = useState(0); // bump to cancel an in-progress slot drawing
   const [anprDirection, setAnprDirection] = useState<"IN" | "OUT">("IN");
   const [anprSaving, setAnprSaving] = useState(false);
 
   // Fetch device
   const fetchDevice = useCallback(async () => {
     if (!id) return;
-    const { data } = await devicesApi.get(id);
-    setDevice(data);
+    try {
+      const { data } = await devicesApi.get(id);
+      setDevice(data);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   // Tracks which camera ID is currently active — stale responses are discarded
@@ -371,6 +378,7 @@ export default function DeviceDetail() {
   const empty = totalCapacity - totalOccupied;
   const obstructed = slots.filter((s) => s.state === "OBSTRUCTED").length;
 
+  if (loading && !device) return <DeviceDetailSkeleton />;
   if (!device) return null;
 
   return (
@@ -411,6 +419,9 @@ export default function DeviceDetail() {
           >
             <CamIcon size={14} />
             {cam.position_label}
+            {(cam as any).module_type === "ANPR" && (
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedCamera?.id === cam.id ? "bg-white/80" : "bg-violet-500"}`} />
+            )}
           </button>
         ))}
         <Button
@@ -485,6 +496,14 @@ export default function DeviceDetail() {
                       <PenTool size={12} /> Draw Line
                     </button>
                   </div>
+                  {(anprDrawMode === "roi" || anprDrawMode === "line") && (
+                    <button
+                      onClick={() => (anprDrawMode === "roi" ? setAnprRoi([]) : setAnprLine([]))}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={12} /> Clear {anprDrawMode === "roi" ? "ROI" : "Line"}
+                    </button>
+                  )}
                 </div>
                 {anprDrawMode === "roi" && (
                   <span className="text-[11px] text-violet-600 font-medium">Click corners to draw ROI polygon. Click near start to close.</span>
@@ -531,6 +550,12 @@ export default function DeviceDetail() {
                         <span className="text-[11px] text-slate-500 font-medium">Label:</span>
                         <Input value={nextLabel} onChange={(e) => setNextLabel(e.target.value)} className="w-20 h-7 text-[12px] rounded-lg" />
                       </div>
+                      <button
+                        onClick={() => setClearSignal((c) => c + 1)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={12} /> Clear
+                      </button>
                     </>
                   )}
                 </div>
@@ -606,6 +631,7 @@ export default function DeviceDetail() {
                     onSlotClick={!drawMode ? (s) => setDeletingSlot(slots.find((sl) => sl.id === s.id) || null) : undefined}
                     drawingEnabled={drawMode}
                     drawingMode={shapeMode}
+                    clearSignal={clearSignal}
                   />
                 ) : snapshotLoading ? (
                   <div className="flex flex-col items-center justify-center bg-slate-900 rounded-xl py-20">
@@ -636,68 +662,131 @@ export default function DeviceDetail() {
 
           {/* Right Sidebar — ANPR config or Slots list */}
           {(selectedCamera as any).module_type === "ANPR" ? (
-            <div className="w-[260px] flex-shrink-0">
-              <h2 className="text-[14px] font-bold text-slate-900 mb-3">ANPR Configuration</h2>
-              <div className="space-y-4">
-                {/* ROI */}
-                <div className="bg-violet-50 rounded-xl border border-violet-100 p-3">
-                  <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-1">ROI Polygon</p>
-                  {anprRoi.length > 0 ? (
-                    <p className="text-[11px] font-mono text-violet-700 break-all">{JSON.stringify(anprRoi)}</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400">Not set — click "Draw ROI"</p>
-                  )}
+            <div className="w-[300px] flex-shrink-0 space-y-4">
+              {/* Camera Details */}
+              <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+                <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+                    <CamIcon size={15} className="text-slate-500" />
+                  </div>
+                  <h2 className="text-[14px] font-bold text-slate-900">Camera Details</h2>
                 </div>
-
-                {/* Trigger Line */}
-                <div className="bg-blue-50 rounded-xl border border-blue-100 p-3">
-                  <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Trigger Line</p>
-                  {anprLine.length === 2 ? (
-                    <p className="text-[11px] font-mono text-blue-700 break-all">{JSON.stringify(anprLine)}</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400">Not set — click "Draw Line"</p>
-                  )}
-                </div>
-
-                {/* Direction */}
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Direction</p>
-                  <div className="flex gap-2">
-                    <button onClick={() => setAnprDirection("IN")}
-                      className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
-                        anprDirection === "IN" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500"
-                      }`}>
-                      IN (Entry)
-                    </button>
-                    <button onClick={() => setAnprDirection("OUT")}
-                      className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border-2 transition-all ${
-                        anprDirection === "OUT" ? "border-red-500 bg-red-50 text-red-700" : "border-slate-200 text-slate-500"
-                      }`}>
-                      OUT (Exit)
-                    </button>
+                <div className="p-4 space-y-2.5 text-[12px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Module</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-violet-100 text-violet-700">ANPR</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Camera Type</span>
+                    <span className="font-semibold text-slate-700">{selectedCamera.camera_type || "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Resolution</span>
+                    <span className="font-semibold text-slate-700">{selectedCamera.frame_width ? `${selectedCamera.frame_width}×${selectedCamera.frame_height}` : "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Detection Interval</span>
+                    <span className="font-semibold text-slate-700">{selectedCamera.detection_interval != null ? `${selectedCamera.detection_interval}s` : "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Status</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${selectedCamera.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{selectedCamera.status}</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Source</p>
+                    <p className="text-[11px] font-mono text-slate-600 break-all bg-slate-50 rounded-lg px-2 py-1.5">{selectedCamera.source || "—"}</p>
                   </div>
                 </div>
+              </div>
 
-                {/* Status */}
-                {anprConfig && (
-                  <div className="flex items-center gap-2 text-[10px] text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Saved — {new Date(anprConfig.updated_at).toLocaleString()}
+              {/* ANPR Configuration */}
+              <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+                <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center">
+                    <ScanLine size={15} className="text-violet-600" />
                   </div>
-                )}
+                  <h2 className="text-[14px] font-bold text-slate-900">ANPR Configuration</h2>
+                </div>
 
-                {/* Actions */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
-                  <Button onClick={handleAnprSave} disabled={anprSaving}
-                    className="w-full rounded-lg bg-violet-600 hover:bg-violet-700 text-[12px] font-semibold">
-                    {anprSaving ? "Saving..." : anprConfig ? "Update & Sync" : "Save Config"}
-                  </Button>
+                <div className="p-4 space-y-3">
+                  {/* ROI Polygon — emerald (matches canvas) */}
+                  <div className="rounded-xl border border-slate-100 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/30 border border-emerald-500" /> ROI Polygon
+                      </span>
+                      {anprRoi.length > 0 ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">{anprRoi.length} points</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 rounded-full px-2 py-0.5">Not set</span>
+                      )}
+                    </div>
+                    {anprRoi.length > 0 ? (
+                      <div className="max-h-16 overflow-y-auto text-[10px] font-mono text-slate-500 bg-slate-50 rounded-lg px-2 py-1.5 break-all leading-relaxed">{JSON.stringify(anprRoi)}</div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Use <b className="text-violet-600 font-semibold">Draw ROI</b> to mark the detection region.</p>
+                    )}
+                  </div>
+
+                  {/* Trigger Line — violet (matches canvas) */}
+                  <div className="rounded-xl border border-slate-100 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-violet-500/30 border border-violet-500" /> Trigger Line
+                      </span>
+                      {anprLine.length === 2 ? (
+                        <span className="text-[10px] font-bold text-violet-700 bg-violet-50 rounded-full px-2 py-0.5">Set</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 rounded-full px-2 py-0.5">Not set</span>
+                      )}
+                    </div>
+                    {anprLine.length === 2 ? (
+                      <div className="text-[10px] font-mono text-slate-500 bg-slate-50 rounded-lg px-2 py-1.5 break-all">[{String(anprLine[0])}] → [{String(anprLine[1])}]</div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Use <b className="text-violet-600 font-semibold">Draw Line</b> to set the capture trigger.</p>
+                    )}
+                  </div>
+
+                  {/* Direction */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Direction</p>
+                    <div className="flex rounded-xl overflow-hidden border border-slate-200">
+                      <button onClick={() => setAnprDirection("IN")}
+                        className={`flex-1 py-2 text-[12px] font-semibold transition-all ${
+                          anprDirection === "IN" ? "bg-blue-500 text-white" : "bg-white text-slate-500 hover:text-slate-700"
+                        }`}>
+                        IN (Entry)
+                      </button>
+                      <button onClick={() => setAnprDirection("OUT")}
+                        className={`flex-1 py-2 text-[12px] font-semibold border-l border-slate-200 transition-all ${
+                          anprDirection === "OUT" ? "bg-red-500 text-white" : "bg-white text-slate-500 hover:text-slate-700"
+                        }`}>
+                        OUT (Exit)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Status */}
                   {anprConfig && (
-                    <Button variant="ghost" onClick={handleAnprDelete}
-                      className="w-full rounded-lg text-[12px] text-red-600 hover:bg-red-50">
-                      Delete Config
-                    </Button>
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Saved — {new Date(anprConfig.updated_at).toLocaleString()}
+                    </div>
                   )}
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                    <Button onClick={handleAnprSave} disabled={anprSaving}
+                      className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-[12px] font-semibold">
+                      {anprSaving ? "Saving..." : anprConfig ? "Update & Sync" : "Save Config"}
+                    </Button>
+                    {anprConfig && (
+                      <Button variant="ghost" onClick={handleAnprDelete}
+                        className="w-full rounded-xl text-[12px] text-red-600 hover:bg-red-50">
+                        Delete Config
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

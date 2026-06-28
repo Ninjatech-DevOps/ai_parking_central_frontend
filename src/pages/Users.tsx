@@ -13,6 +13,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pagination from "@/components/Pagination";
 import { UserPlus, Pencil, Trash2, Search, Users as UsersIcon, Shield, X, MapPin } from "lucide-react";
+import UsersSkeleton from "@/components/skeletons/UsersSkeleton";
 import type { User, Area, Location, Role } from "@/types/api";
 
 interface AccessArea {
@@ -28,6 +29,7 @@ export default function Users() {
   const canDelete = hasPermission("users:delete");
   // ─── List state ───
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -83,9 +85,13 @@ export default function Users() {
 
   // ─── Fetch users ───
   const fetchUsers = useCallback(async () => {
-    const { data } = await usersApi.list(`page=${page}&page_size=${pageSize}`);
-    setUsers(data.items || []);
-    setTotal(data.total || 0);
+    try {
+      const { data } = await usersApi.list(`page=${page}&page_size=${pageSize}`);
+      setUsers(data.items || []);
+      setTotal(data.total || 0);
+    } finally {
+      setLoading(false);
+    }
   }, [page]);
   usePolling(fetchUsers, 30000);
 
@@ -201,6 +207,8 @@ export default function Users() {
     const map: Record<string, string> = { STATE: "State", CITY: "City", AREA: "Area", LOCATION: "Location", ZONE: "Zone" };
     return map[type] || type;
   }
+
+  if (loading && users.length === 0) return <UsersSkeleton />;
 
   return (
     <div className="w-full">

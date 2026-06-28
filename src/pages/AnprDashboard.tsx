@@ -3,9 +3,10 @@ import { useFilter } from "@/contexts/FilterContext";
 import { anprDashboardApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import {
-  Car, Bike, CircleCheck, Ban, MapPin, RefreshCw, Loader2,
+  Car, Bike, CircleCheck, MapPin, RefreshCw,
 } from "lucide-react";
 import type { AnprDashboardSummary, AnprDashboardLocation } from "@/types/api";
+import AnprDashboardSkeleton from "@/components/skeletons/AnprDashboardSkeleton";
 
 export default function AnprDashboard() {
   const { queryParams, filterLabel } = useFilter();
@@ -29,11 +30,7 @@ export default function AnprDashboard() {
   usePolling(fetchData, 5000);
 
   if (loading && !summary) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 size={28} className="animate-spin text-teal-500" />
-      </div>
-    );
+    return <AnprDashboardSkeleton />;
   }
 
   const s = summary || { car_total: 0, car_occupied: 0, car_available: 0, two_wheeler_total: 0, two_wheeler_occupied: 0, two_wheeler_available: 0, obstructions: 0 };
@@ -57,14 +54,13 @@ export default function AnprDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4 mb-8">
         <StatCard label="Car Occupied" value={s.car_occupied} icon={Car} bg="bg-red-50" text="text-red-500" />
         <StatCard label="Car Available" value={s.car_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
         <StatCard label="Car Total" value={s.car_total} icon={Car} bg="bg-blue-50" text="text-blue-600" />
         <StatCard label="2W Occupied" value={s.two_wheeler_occupied} icon={Bike} bg="bg-red-50" text="text-red-500" />
         <StatCard label="2W Available" value={s.two_wheeler_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
         <StatCard label="2W Total" value={s.two_wheeler_total} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
-        <StatCard label="Obstructions" value={s.obstructions} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
       {/* Location-wise Table */}

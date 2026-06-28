@@ -31,16 +31,20 @@ export default function SearchSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger>
-        <div
-          role="button"
-          tabIndex={0}
-          className={`flex items-center justify-between gap-2 h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer ${className}`}
-        >
-          <span className="truncate">{selectedLabel}</span>
-          <ChevronDown size={12} className="text-slate-400 shrink-0" />
-        </div>
-      </PopoverTrigger>
+      {/* Render the styled div AS the trigger (asChild) so width utilities like
+          w-full / w-40 apply directly instead of to a shrink-wrapping button. */}
+      <PopoverTrigger
+        render={
+          <div
+            role="button"
+            tabIndex={0}
+            className={`flex items-center justify-between gap-2 h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer ${className}`}
+          >
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown size={12} className="text-slate-400 shrink-0" />
+          </div>
+        }
+      />
       <PopoverContent className="w-[220px] p-0 rounded-xl" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} className="text-[12px] h-9" />

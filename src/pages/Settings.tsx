@@ -4,25 +4,86 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { User, Bell, Lock, Check } from "lucide-react";
+import { SkeletonShell, Skel, SkeletonTable } from "@/components/Skeleton";
 
 interface NotifPref { id: string; alert_severity: string; channel: string; is_enabled: boolean; }
 const severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 const channels = ["PUSH", "EMAIL", "IN_APP"];
 
+function SettingsSkeleton() {
+  return (
+    <SkeletonShell>
+      {/* Title */}
+      <Skel className="w-40 h-7 mb-6" />
+      <div className="flex gap-6">
+        {/* Tab nav */}
+        <div className="w-52 shrink-0 space-y-1">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skel key={i} className="w-full h-12 rounded-xl" />
+          ))}
+        </div>
+        <div className="flex-1">
+          {/* Profile card */}
+          <div className="bg-white rounded-2xl card-shadow p-6 animate-pulse">
+            <Skel className="w-44 h-5 mb-6" />
+            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+              <Skel className="w-16 h-16 rounded-2xl" />
+              <div>
+                <Skel className="w-40 h-5 mb-2" />
+                <Skel className="w-56 h-4" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i}>
+                  <Skel className="w-20 h-3 mb-2" />
+                  <Skel className="w-full h-11 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Prefs table */}
+          <div className="mt-6">
+            <SkeletonTable rows={4} cols={4} />
+          </div>
+          {/* Password form */}
+          <div className="bg-white rounded-2xl card-shadow p-6 mt-6 animate-pulse max-w-md">
+            <Skel className="w-40 h-5 mb-6" />
+            <div className="space-y-5">
+              <div>
+                <Skel className="w-32 h-4 mb-2" />
+                <Skel className="w-full h-10 rounded-xl" />
+              </div>
+              <div>
+                <Skel className="w-32 h-4 mb-2" />
+                <Skel className="w-full h-10 rounded-xl" />
+              </div>
+              <Skel className="w-40 h-10 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const [tab, setTab] = useState("profile");
-  const [prefs, setPrefs] = useState<NotifPref[]>([]);
+  const [prefs, setPrefs] = useState<NotifPref[] | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
   const [currentPw, setCurrentPw] = useState(""); const [newPw, setNewPw] = useState(""); const [pwMsg, setPwMsg] = useState("");
 
-  useEffect(() => { if (tab === "notifications") notifPrefsApi.get().then(({ data }) => setPrefs(data)); }, [tab]);
-  function isOn(s: string, c: string) { return prefs.some((p) => p.alert_severity === s && p.channel === c && p.is_enabled); }
-  function toggle(s: string, c: string) { const e = prefs.find((p) => p.alert_severity === s && p.channel === c); if (e) setPrefs(prefs.map((p) => p === e ? { ...p, is_enabled: !p.is_enabled } : p)); else setPrefs([...prefs, { id: "", alert_severity: s, channel: c, is_enabled: true }]); }
+  useEffect(() => { notifPrefsApi.get().then(({ data }) => setPrefs(data)).catch(() => setPrefs([])).finally(() => setLoading(false)); }, []);
+  function isOn(s: string, c: string) { return (prefs ?? []).some((p) => p.alert_severity === s && p.channel === c && p.is_enabled); }
+  function toggle(s: string, c: string) { const list = prefs ?? []; const e = list.find((p) => p.alert_severity === s && p.channel === c); if (e) setPrefs(list.map((p) => p === e ? { ...p, is_enabled: !p.is_enabled } : p)); else setPrefs([...list, { id: "", alert_severity: s, channel: c, is_enabled: true }]); }
   async function savePrefs() { setSaving(true); const all: Record<string, unknown>[] = []; for (const s of severities) for (const c of channels) all.push({ alert_severity: s, channel: c, is_enabled: isOn(s, c) }); const { data } = await notifPrefsApi.update(all); setPrefs(data); setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000); }
   async function changePw(e: FormEvent) { e.preventDefault(); setPwMsg(""); try { await usersApi.changePassword({ current_password: currentPw, new_password: newPw }); setPwMsg("success"); setCurrentPw(""); setNewPw(""); } catch { setPwMsg("error"); } }
 
   const tabs = [{ id: "profile", label: "Profile", icon: User }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "security", label: "Security", icon: Lock }];
+
+  if (loading && !prefs) return <SettingsSkeleton />;
 
   return (
     <div className="w-full">

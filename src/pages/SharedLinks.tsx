@@ -10,6 +10,7 @@ import SearchSelect from "@/components/SearchSelect";
 import Pagination from "@/components/Pagination";
 import { sharedLinksApi, areasApi, locationsApi, devicesApi, camerasApi } from "@/services/api";
 import { showSuccess, showError } from "@/lib/toast";
+import SharedLinksSkeleton from "@/components/skeletons/SharedLinksSkeleton";
 import type { SharedLink, Area, Location, Camera } from "@/types/api";
 
 const SCOPE_OPTIONS = [
@@ -41,6 +42,7 @@ function timeUntil(dateStr: string): string {
 
 export default function SharedLinks() {
   const [links, setLinks] = useState<SharedLink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -80,7 +82,7 @@ export default function SharedLinks() {
       setLinks(data.items || []);
       setTotal(data.total || 0);
       setTotalPages(data.total_pages || 0);
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally { setLoading(false); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
@@ -243,6 +245,8 @@ export default function SharedLinks() {
       prev.includes(cameraId) ? prev.filter((id) => id !== cameraId) : [...prev, cameraId]
     );
   }
+
+  if (loading && links.length === 0) return <SharedLinksSkeleton />;
 
   return (
     <div className="space-y-6">
