@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Notify Google Chat for build start') {
+            steps {
+                script {
+                    def googleChatWebhook = 'https://chat.googleapis.com/v1/spaces/AAAAezVsu8k/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=yqTBR-sDlkmHyvlgHU21UsJeyFfZFNCUqc_6GT1zzH0'
+                    def message = 'Build Started for ai_parking_central_frontend-dev-branch\nJob URL: ' + env.BUILD_URL
+
+                    httpRequest(
+                        url: googleChatWebhook,
+                        httpMode: 'POST',
+                        contentType: 'APPLICATION_JSON',
+                        requestBody: "{\"text\":\"${message}\"}"
+                    )
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                script {
+                    sshagent(credentials: ['ai_parking_central_backend-key-hostinger']) {
+
+                        def serverIP = '187.127.187.159'
+                        def sshUser = 'root'
+
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/sh << EOF
+                            cd /root/ai_parking_central_frontend
+                            git status
+                            git stash
+                            git pull origin dev
+                            npm install
+                            npm run build
+EOF
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Verify Build') {
+            steps {
+                script {
+                    sshagent(credentials: ['ai_parking_central_backend-key-hostinger']) {
+
+                        def serverIP = '187.127.187.159'
+                        def sshUser = 'root'
+
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/sh << EOF
+                            cd /root/ai_parking_central_frontend
+                            ls -la dist
+EOF
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                def googleChatWebhook = 'https://chat.googleapis.com/v1/spaces/AAAAezVsu8k/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=yqTBR-sDlkmHyvlgHU21UsJeyFfZFNCUqc_6GT1zzH0'
+                def buildStatus = currentBuild.result ?: 'UNKNOWN'
+                def message = "Build ${buildStatus} for ai_parking_central_frontend-dev-branch\nJob URL: ${env.BUILD_URL}"
+
+                httpRequest(
+                    url: googleChatWebhook,
+                    httpMode: 'POST',
+                    contentType: 'APPLICATION_JSON',
+                    requestBody: "{\"text\":\"${message}\"}"
+                )
+            }
+        }
+    }
+}
