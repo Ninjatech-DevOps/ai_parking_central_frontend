@@ -11,8 +11,8 @@ export default function AnprDashboardSkeleton() {
           <Skel className="w-28 h-9 rounded-xl" />
         </div>
 
-        {/* Summary cards — 4 total (Cars, Cars Avail, 2W, 2W Avail) */}
-        <SkeletonStatCards count={4} cols={4} className="!mb-8" />
+        {/* Summary cards — 6 total (Car Occ/Avail/Total, 2W Occ/Avail/Total), 3 per row */}
+        <SkeletonStatCards count={6} cols={3} className="!mb-8" />
 
         {/* Location-wise table */}
         <SkeletonTable rows={6} cols={9} />

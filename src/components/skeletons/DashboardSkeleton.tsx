@@ -21,12 +21,12 @@ export default function DashboardSkeleton() {
           <Skel className="w-24 h-9 rounded-lg" />
         </div>
 
-        {/* Stat cards (10) */}
-        <SkeletonStatCards count={10} cols={5} className="!mb-8" />
+        {/* Stat cards (12) */}
+        <SkeletonStatCards count={12} cols={5} className="!mb-8" />
 
         {/* Camera table */}
         <div className="mb-8">
-          <SkeletonTable rows={6} cols={8} />
+          <SkeletonTable rows={6} cols={11} />
         </div>
 
         {/* Parking locations table */}

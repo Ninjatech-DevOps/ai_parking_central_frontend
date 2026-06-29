@@ -162,10 +162,12 @@ export default function Dashboard() {
         <StatCard label="Occupied" value={slotsOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
         <StatCard label="Available" value={slotsAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
         <StatCard label="Total Capacity" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
-        <StatCard label="Cars" value={`${occCar}/${totalCapCar}`} icon={Car} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="Cars Available" value={availCar} icon={CircleCheck} bg="bg-blue-50" text="text-blue-500" />
-        <StatCard label="2-Wheelers" value={`${occ2w}/${totalCap2w}`} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
-        <StatCard label="2W Available" value={avail2w} icon={CircleCheck} bg="bg-indigo-50" text="text-indigo-500" />
+        <StatCard label="Car Occupied" value={occCar} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Car Available" value={availCar} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Car Total" value={totalCapCar} icon={Car} bg="bg-blue-50" text="text-blue-600" />
+        <StatCard label="2W Occupied" value={occ2w} icon={Bike} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="2W Available" value={avail2w} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="2W Total" value={totalCap2w} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
         <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
@@ -192,11 +194,12 @@ export default function Dashboard() {
                 <tr className="bg-slate-50/80 border-b border-slate-100">
                   <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
                   <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Camera</th>
-                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Occupied</th>
-                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available</th>
-                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total</th>
-                  <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Cars</th>
-                  <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Occ</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Avail</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Total</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Occ</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Avail</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Total</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Obstructed</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
@@ -224,19 +227,22 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="px-3 py-4 text-center">
-                        <span className="text-[18px] font-bold text-red-500">{occupied}</span>
+                        <span className={`text-[18px] font-bold ${occCar > 0 ? "text-red-500" : "text-slate-300"}`}>{occCar}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
-                        <span className="text-[18px] font-bold text-emerald-600">{available}</span>
+                        <span className="text-[18px] font-bold text-emerald-600">{Math.max(0, capCar - occCar)}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
-                        <span className="text-[18px] font-bold text-slate-800">{total}</span>
+                        <span className="text-[18px] font-bold text-slate-800">{capCar}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
-                        <span className={`text-[14px] font-bold ${occCar > 0 ? "text-blue-600" : "text-slate-300"}`}>{occCar}/{capCar}</span>
+                        <span className={`text-[18px] font-bold ${occ2w > 0 ? "text-red-500" : "text-slate-300"}`}>{occ2w}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
-                        <span className={`text-[14px] font-bold ${occ2w > 0 ? "text-indigo-600" : "text-slate-300"}`}>{occ2w}/{cap2w}</span>
+                        <span className="text-[18px] font-bold text-emerald-600">{Math.max(0, cap2w - occ2w)}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-slate-800">{cap2w}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
                         <span className={`text-[18px] font-bold ${obstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{obstructed}</span>
@@ -286,11 +292,12 @@ export default function Dashboard() {
                   <td className="px-6 py-4" colSpan={2}>
                     <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Totals</span>
                   </td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{slotsOccupied}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{slotsAvailable}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalSlots}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[16px] font-extrabold text-blue-600">{occCar}/{totalCapCar}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[16px] font-extrabold text-indigo-600">{occ2w}/{totalCap2w}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{occCar}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{Math.max(0, totalCapCar - occCar)}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalCapCar}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{occ2w}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{Math.max(0, totalCap2w - occ2w)}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalCap2w}</span></td>
                   <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsObstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{slotsObstructed}</span></td>
                   <td className="px-3 py-4 text-center">
                     <span className="text-[13px] font-bold text-slate-500">
@@ -452,16 +459,16 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
                     <Car size={16} className="text-blue-500" />
                     <span className="text-[12px] font-bold text-blue-600">Cars</span>
-                    <span className="text-[11px] text-slate-500 ml-auto">Total <b>{capCar}</b></span>
-                    <span className="text-[11px] text-red-500">Occupied <b>{oCar}</b></span>
+                    <span className="text-[11px] text-red-500 ml-auto">Occupied <b>{oCar}</b></span>
                     <span className="text-[11px] text-emerald-600">Available <b>{aCar}</b></span>
+                    <span className="text-[11px] text-slate-500">Total <b>{capCar}</b></span>
                   </div>
                   <div className="flex items-center gap-2 bg-indigo-50 rounded-lg px-3 py-2">
                     <Bike size={16} className="text-indigo-500" />
                     <span className="text-[12px] font-bold text-indigo-600">2W</span>
-                    <span className="text-[11px] text-slate-500 ml-auto">Total <b>{cap2w}</b></span>
-                    <span className="text-[11px] text-red-500">Occupied <b>{o2w}</b></span>
+                    <span className="text-[11px] text-red-500 ml-auto">Occupied <b>{o2w}</b></span>
                     <span className="text-[11px] text-emerald-600">Available <b>{a2w}</b></span>
+                    <span className="text-[11px] text-slate-500">Total <b>{cap2w}</b></span>
                   </div>
                 </div>
               );

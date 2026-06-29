@@ -53,12 +53,14 @@ export default function AnprDashboard() {
         </button>
       </div>
 
-      {/* Summary Cards — match AI Parking layout (occupied/total + available, blue/indigo) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Cars" value={`${s.car_occupied}/${s.car_total}`} icon={Car} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="Cars Available" value={s.car_available} icon={CircleCheck} bg="bg-blue-50" text="text-blue-500" />
-        <StatCard label="2-Wheelers" value={`${s.two_wheeler_occupied}/${s.two_wheeler_total}`} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
-        <StatCard label="2W Available" value={s.two_wheeler_available} icon={CircleCheck} bg="bg-indigo-50" text="text-indigo-500" />
+      {/* Summary Cards — Car & 2-Wheeler, in Occupied → Available → Total order */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4 mb-8">
+        <StatCard label="Car Occupied" value={s.car_occupied} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Car Available" value={s.car_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Car Total" value={s.car_total} icon={Car} bg="bg-blue-50" text="text-blue-600" />
+        <StatCard label="2W Occupied" value={s.two_wheeler_occupied} icon={Bike} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="2W Available" value={s.two_wheeler_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="2W Total" value={s.two_wheeler_total} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
       </div>
 
       {/* Location-wise Table */}

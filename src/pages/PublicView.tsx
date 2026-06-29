@@ -149,16 +149,16 @@ export default function PublicView() {
             </div>
             <div className="grid grid-cols-3 divide-x divide-blue-100">
               <div className="text-center py-3">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
-                <p className="text-[28px] font-bold text-blue-600 leading-tight">{totalCapCar}</p>
-              </div>
-              <div className="text-center py-3">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Occupied</p>
                 <p className="text-[28px] font-bold text-red-500 leading-tight">{totalOccCar}</p>
               </div>
               <div className="text-center py-3">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Available</p>
                 <p className="text-[28px] font-bold text-emerald-600 leading-tight">{totalAvailCar}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
+                <p className="text-[28px] font-bold text-blue-600 leading-tight">{totalCapCar}</p>
               </div>
             </div>
           </div>
@@ -170,16 +170,16 @@ export default function PublicView() {
             </div>
             <div className="grid grid-cols-3 divide-x divide-indigo-100">
               <div className="text-center py-3">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
-                <p className="text-[28px] font-bold text-indigo-600 leading-tight">{totalCap2w}</p>
-              </div>
-              <div className="text-center py-3">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Occupied</p>
                 <p className="text-[28px] font-bold text-red-500 leading-tight">{totalOcc2w}</p>
               </div>
               <div className="text-center py-3">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Available</p>
                 <p className="text-[28px] font-bold text-emerald-600 leading-tight">{totalAvail2w}</p>
+              </div>
+              <div className="text-center py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total</p>
+                <p className="text-[28px] font-bold text-indigo-600 leading-tight">{totalCap2w}</p>
               </div>
             </div>
           </div>
