@@ -28,7 +28,7 @@ pipeline {
                         def sshUser = 'root'
 
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/sh << EOF
+                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/bash << EOF
                             cd /root/ai_parking_central_frontend
                             git status
                             git stash
@@ -55,7 +55,7 @@ EOF
                         def sshUser = 'root'
 
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/sh << EOF
+                            ssh -o StrictHostKeyChecking=no ${sshUser}@${serverIP} /bin/bash << EOF
                             cd /root/ai_parking_central_frontend
                             ls -la dist
 EOF
