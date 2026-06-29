@@ -217,18 +217,7 @@ export default function ParkingScanHistory() {
 
   async function handleExport(type: "csv" | "excel" | "pdf") {
     if (exporting) return;
-    const p = new URLSearchParams();
-    if (customFrom || customTo) {
-      if (customFrom) p.set("start_date", new Date(customFrom).toISOString());
-      if (customTo) p.set("end_date", new Date(customTo).toISOString());
-    } else if (datePreset) {
-      const { start, end } = getPresetDates(datePreset);
-      if (start) p.set("start_date", start);
-      if (end) p.set("end_date", end);
-    }
-    if (locationId) p.set("location_id", locationId);
-    else if (areaId) p.set("area_id", areaId);
-    const ps = p.toString();
+    const ps = buildParams(true);
     const ext = type === "csv" ? "csv" : type === "excel" ? "xlsx" : "pdf";
     const url = type === "csv" ? parkingHistoryApi.exportCsvUrl(ps) : type === "excel" ? parkingHistoryApi.exportExcelUrl(ps) : parkingHistoryApi.exportPdfUrl(ps);
     const ts = new Date().toISOString().slice(0, 10);
