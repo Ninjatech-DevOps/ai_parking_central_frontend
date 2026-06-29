@@ -33,7 +33,9 @@ pipeline {
                             git status
                             git stash
                             git pull origin dev
+                            echo "/root/.nvm/versions/node/v22.23.1/bin/npm install"
                             /root/.nvm/versions/node/v22.23.1/bin/npm install
+                            echo "/root/.nvm/versions/node/v22.23.1/bin/npm run dev"
                             /root/.nvm/versions/node/v22.23.1/bin/npm run build
 EOF
                         """
