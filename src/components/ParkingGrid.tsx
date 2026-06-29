@@ -224,9 +224,9 @@ function Legend({ summary, slots }: { summary: Record<string, number>; slots: Sl
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 32, fontSize: 18 }}>
       {[
-        { label: "Total", value: slots.length, color: TH.legendText },
-        { label: "Available", value: summary.EMPTY, color: STATES.EMPTY.dot },
         { label: "Occupied", value: summary.VEHICLE, color: STATES.VEHICLE.dot },
+        { label: "Available", value: summary.EMPTY, color: STATES.EMPTY.dot },
+        { label: "Total", value: slots.length, color: TH.legendText },
         { label: "Obstructed", value: summary.OBSTRUCTED, color: STATES.OBSTRUCTED.dot },
         ...(summary.MISMATCHED > 0 ? [{ label: "Mismatched", value: summary.MISMATCHED, color: STATES.MISMATCHED.dot }] : []),
       ].map(({ label, value, color }) => (

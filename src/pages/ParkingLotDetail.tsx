@@ -275,9 +275,9 @@ export default function ParkingLotDetail() {
         </div>
         <div className="flex gap-3 text-center">
           {[
-            { v: totalSlots, l: "Total", c: "text-slate-900" },
-            { v: emptySlots, l: "Empty", c: "text-emerald-600" },
             { v: vehicleSlots, l: "Occupied", c: "text-red-600" },
+            { v: emptySlots, l: "Available", c: "text-emerald-600" },
+            { v: totalSlots, l: "Total", c: "text-slate-900" },
           ].map(({ v, l, c }) => (
             <div key={l} className="bg-white rounded-xl card-shadow px-4 py-2">
               <p className={`text-[18px] font-bold ${c}`}>{v}</p>

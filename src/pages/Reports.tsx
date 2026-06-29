@@ -181,13 +181,10 @@ export default function Reports() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
-  // Applied filters (mirrors Parking History: camera / status / type / duration)
+  // Applied filters (mirrors Parking History: camera / status / type)
   const [selectedCamera, setSelectedCamera] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedEventType, setSelectedEventType] = useState("");
-  const [minDuration, setMinDuration] = useState("");
-  const [maxDuration, setMaxDuration] = useState("");
-  const [durationUnit, setDurationUnit] = useState<"min" | "hr">("min");
 
   // Filter panel (draft → Apply)
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -199,9 +196,6 @@ export default function Reports() {
   const [draftCamera, setDraftCamera] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
   const [draftEventType, setDraftEventType] = useState("");
-  const [draftMinDuration, setDraftMinDuration] = useState("");
-  const [draftMaxDuration, setDraftMaxDuration] = useState("");
-  const [draftDurationUnit, setDraftDurationUnit] = useState<"min" | "hr">("min");
   const [draftSlotType, setDraftSlotType] = useState("");
   const [draftThreshold, setDraftThreshold] = useState(80);
   const [cameraOptions, setCameraOptions] = useState<{ value: string; label: string }[]>([]);
@@ -265,7 +259,6 @@ export default function Reports() {
     setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo);
     setDraftArea(selectedArea); setDraftLocation(selectedLocation); setDraftCamera(selectedCamera);
     setDraftStatus(selectedStatus); setDraftEventType(selectedEventType);
-    setDraftMinDuration(minDuration); setDraftMaxDuration(maxDuration); setDraftDurationUnit(durationUnit);
     setDraftSlotType(occSlotType); setDraftThreshold(occThreshold);
     setFiltersOpen(true);
   }
@@ -273,21 +266,20 @@ export default function Reports() {
     setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo);
     setSelectedArea(draftArea); setSelectedLocation(draftLocation); setSelectedCamera(draftCamera);
     setSelectedStatus(draftStatus); setSelectedEventType(draftEventType);
-    setMinDuration(draftMinDuration); setMaxDuration(draftMaxDuration); setDurationUnit(draftDurationUnit);
     setOccSlotType(draftSlotType); setOccThreshold(draftThreshold);
     setFiltersOpen(false);
   }
   function clearFilters() {
     setDraftPreset("today"); setDraftFrom(""); setDraftTo(""); setDraftArea(""); setDraftLocation(""); setDraftCamera("");
-    setDraftStatus(""); setDraftEventType(""); setDraftMinDuration(""); setDraftMaxDuration(""); setDraftDurationUnit("min");
+    setDraftStatus(""); setDraftEventType("");
     setDraftSlotType(""); setDraftThreshold(80);
     setDatePreset("today"); setCustomFrom(""); setCustomTo(""); setSelectedArea(""); setSelectedLocation(""); setSelectedCamera("");
-    setSelectedStatus(""); setSelectedEventType(""); setMinDuration(""); setMaxDuration(""); setDurationUnit("min");
+    setSelectedStatus(""); setSelectedEventType("");
     setOccSlotType(""); setOccThreshold(80);
   }
   const activeFilterCount = [
     selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType,
-    minDuration || maxDuration, customFrom, customTo, occSlotType,
+    customFrom, customTo, occSlotType,
   ].filter(Boolean).length + (datePreset !== "today" ? 1 : 0) + (occThreshold !== 80 ? 1 : 0);
 
   // Resolve the active date range from preset / custom inputs
@@ -315,14 +307,11 @@ export default function Reports() {
       if (selectedStatus) p.set("status", selectedStatus);
       if (selectedEventType) p.set("event_type", selectedEventType);
     }
-    const mult = durationUnit === "hr" ? 60 : 1;
-    if (minDuration) p.set("min_duration", String(Number(minDuration) * mult));
-    if (maxDuration) p.set("max_duration", String(Number(maxDuration) * mult));
     if (range.start) p.set("start_date", range.start);
     if (range.end) p.set("end_date", range.end);
     if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
     return p.toString();
-  }, [selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, minDuration, maxDuration, durationUnit, range]);
+  }, [selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, range]);
 
   // ─── Generate the combined report (parking + ANPR) ───
   // STATIC MOCK — swap point: this loads static data from reportsMock. For live
@@ -345,7 +334,7 @@ export default function Reports() {
   // Auto-generate on mount and whenever preset / area / location changes.
   // (Custom dates apply via the explicit "Apply" button to avoid firing on every keystroke.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { generate(); }, [datePreset, selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, minDuration, maxDuration, durationUnit, occSlotType, occThreshold, customFrom, customTo]);
+  useEffect(() => { generate(); }, [datePreset, selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, occSlotType, occThreshold, customFrom, customTo]);
 
   // ─── Occupancy analysis (lazy: when tab opened or controls applied) ───
   // STATIC MOCK — swap point: loads static occupancy data. For live data, restore
@@ -520,31 +509,6 @@ export default function Reports() {
               className={`w-full h-10 ${typeFilterDisabled ? "opacity-40 pointer-events-none" : ""}`}
             />
           </FilterField>
-          <FilterField label="Duration">
-            <div className="flex items-center h-10 rounded-lg border border-slate-200 bg-white overflow-hidden">
-              <input
-                type="number" min="0" value={draftMinDuration}
-                onChange={(e) => setDraftMinDuration(e.target.value)}
-                placeholder="Min"
-                className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <span className="text-[10px] text-slate-300 shrink-0">to</span>
-              <input
-                type="number" min="0" value={draftMaxDuration}
-                onChange={(e) => setDraftMaxDuration(e.target.value)}
-                placeholder="Max"
-                className="flex-1 min-w-0 h-full px-2 text-[12px] text-slate-700 text-center focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <select
-                value={draftDurationUnit}
-                onChange={(e) => setDraftDurationUnit(e.target.value as "min" | "hr")}
-                className="h-full border-l border-slate-200 px-1.5 text-[11px] text-slate-500 bg-slate-50 focus:outline-none cursor-pointer"
-              >
-                <option value="min">min</option>
-                <option value="hr">hrs</option>
-              </select>
-            </div>
-          </FilterField>
           <FilterField label="Slot Type">
             <FilterSelect value={draftSlotType} onChange={setDraftSlotType}>
               <option value="">All Types</option>
@@ -642,14 +606,14 @@ function OverviewTab({ data, s, anpr, anprSummary, rangeLabel }: {
           {slot ? (
             <>
               <SplitBar segments={[
-                { label: "Available", value: slot.available, color: "bg-emerald-400" },
                 { label: "Occupied", value: slot.occupied, color: "bg-red-400" },
+                { label: "Available", value: slot.available, color: "bg-emerald-400" },
                 { label: "Obstructed", value: slot.obstructed, color: "bg-amber-400" },
               ]} />
               <div className="grid grid-cols-4 gap-2 mt-4">
-                <MiniMetric label="Total" value={slot.total} />
-                <MiniMetric label="Available" value={slot.available} color="text-emerald-600" />
                 <MiniMetric label="Occupied" value={slot.occupied} color="text-red-500" />
+                <MiniMetric label="Available" value={slot.available} color="text-emerald-600" />
+                <MiniMetric label="Total" value={slot.total} />
                 <MiniMetric label="Obstructed" value={slot.obstructed} color="text-amber-600" />
               </div>
             </>
@@ -754,9 +718,9 @@ function ParkingTab({ data, s, page, setPage, totalPages, pagedSessions, session
     <div className="space-y-5">
       {data.slot_counts && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Total Slots" value={data.slot_counts.total} icon={ParkingSquare} color="slate" />
-          <StatCard label="Available" value={data.slot_counts.available} icon={CircleCheck} color="teal" />
           <StatCard label="Occupied" value={data.slot_counts.occupied} icon={Car} color="red" />
+          <StatCard label="Available" value={data.slot_counts.available} icon={CircleCheck} color="teal" />
+          <StatCard label="Total Slots" value={data.slot_counts.total} icon={ParkingSquare} color="slate" />
           <StatCard label="Obstructed" value={data.slot_counts.obstructed} icon={Ban} color="orange" />
         </div>
       )}
