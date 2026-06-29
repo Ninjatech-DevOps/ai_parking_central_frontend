@@ -186,18 +186,26 @@ export const commandsApi = {
 export const slotEventsApi = {
   history: (params?: string) => api.get<PaginatedResponse<ParkingSession>>(`/slot-events/history?${params || "page_size=20"}`),
   bySlot: (slotId: string, params?: string) => api.get<ParkingSession[]>(`/slot-events/${slotId}?${params || ""}`),
+  // Backend-generated exports (fetched with auth via downloadFile).
+  exportExcelUrl: (params?: string) => `/slot-events/export-excel?${params || ""}`,
+  exportPdfUrl: (params?: string) => `/slot-events/export-pdf?${params || ""}`,
 };
 
 // ─── Reports ───
+// Self-contained, page-driven Reports API. Data endpoints + fresh ANPR report
+// endpoints (dedicated to this page, separate from the ANPR module's APIs).
 // Export URLs are relative so they can be fetched (with auth) via downloadFile().
 export const reportsApi = {
   summary: (params?: string) => api.get<any>(`/reports/summary?${params || ""}`),
+  occupancyAnalysis: (params?: string) => api.get<any>(`/reports/occupancy-analysis?${params || ""}`),
+  // Fresh ANPR endpoints for the Reports page (do NOT use the ANPR module's APIs).
+  anprSummary: (params?: string) => api.get<AnprDashboardSummary>(`/reports/anpr-summary?${params || ""}`),
+  anprLocations: (params?: string) => api.get<{ locations: AnprDashboardLocation[] }>(`/reports/anpr-locations?${params || ""}`),
+  anprSessions: (params?: string) => api.get<{ items: AnprSession[]; total: number }>(`/reports/anpr-sessions?${params || ""}`),
+  // Unified export — a single file containing ALL tabs (Excel = multi-sheet, CSV = section blocks, PDF = full report).
   exportCsvUrl: (params?: string) => `/reports/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/reports/export-excel?${params || ""}`,
   exportPdfUrl: (params?: string) => `/reports/export-pdf?${params || ""}`,
-  occupancyAnalysis: (params?: string) => api.get<any>(`/reports/occupancy-analysis?${params || ""}`),
-  occupancyExportCsvUrl: (params?: string) => `/reports/occupancy-analysis/export-csv?${params || ""}`,
-  occupancyExportExcelUrl: (params?: string) => `/reports/occupancy-analysis/export-excel?${params || ""}`,
 };
 
 // ─── Alerts ───
