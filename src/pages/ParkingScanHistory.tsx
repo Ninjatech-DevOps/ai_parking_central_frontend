@@ -73,6 +73,7 @@ export default function ParkingScanHistory() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -133,7 +134,8 @@ export default function ParkingScanHistory() {
 
   const activeFilterCount = [customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
 
-  function handleExport(type: "csv" | "excel" | "pdf") {
+  async function handleExport(type: "csv" | "excel" | "pdf") {
+    if (exporting) return;
     const p = new URLSearchParams();
     if (customFrom || customTo) {
       if (customFrom) p.set("start_date", new Date(customFrom).toISOString());
@@ -149,7 +151,12 @@ export default function ParkingScanHistory() {
     const ext = type === "csv" ? "csv" : type === "excel" ? "xlsx" : "pdf";
     const url = type === "csv" ? parkingHistoryApi.exportCsvUrl(ps) : type === "excel" ? parkingHistoryApi.exportExcelUrl(ps) : parkingHistoryApi.exportPdfUrl(ps);
     const ts = new Date().toISOString().slice(0, 10);
-    downloadFile(url, `parking_history_${ts}.${ext}`);
+    // Keep the button in a loading state until the file finishes downloading.
+    setExporting(type);
+    try {
+      await downloadFile(url, `parking_history_${ts}.${ext}`);
+    } catch { /* surfaced by axios interceptor */ }
+    finally { setExporting(null); }
   }
 
   if (loading && scans.length === 0) return <ParkingScanHistorySkeleton />;
@@ -174,14 +181,14 @@ export default function ParkingScanHistory() {
           <p className="text-[13px] text-slate-400 mt-0.5">Detection scan records — one row per scan cycle</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => handleExport("csv")} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow">
-            <Download size={12} /> CSV
+          <button onClick={() => handleExport("csv")} disabled={!!exporting} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow disabled:opacity-60 disabled:cursor-not-allowed">
+            {exporting === "csv" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} {exporting === "csv" ? "Downloading..." : "CSV"}
           </button>
-          <button onClick={() => handleExport("excel")} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow">
-            <FileSpreadsheet size={12} /> Excel
+          <button onClick={() => handleExport("excel")} disabled={!!exporting} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow disabled:opacity-60 disabled:cursor-not-allowed">
+            {exporting === "excel" ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />} {exporting === "excel" ? "Downloading..." : "Excel"}
           </button>
-          <button onClick={() => handleExport("pdf")} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow">
-            <FileText size={12} /> PDF
+          <button onClick={() => handleExport("pdf")} disabled={!!exporting} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow disabled:opacity-60 disabled:cursor-not-allowed">
+            {exporting === "pdf" ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} {exporting === "pdf" ? "Downloading..." : "PDF"}
           </button>
         </div>
       </div>
