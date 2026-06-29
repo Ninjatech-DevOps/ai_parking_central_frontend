@@ -251,6 +251,7 @@ export const anprRecordsApi = {
 
 export const anprSessionsApi = {
   list: (params?: string) => api.get<PaginatedResponse<AnprSession>>(`/anpr-sessions?${params || ""}`),
+  delete: (id: string) => api.delete(`/anpr-sessions/${id}`),
   exportCsvUrl: (params?: string) => `/anpr-sessions/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/anpr-sessions/export-excel?${params || ""}`,
   exportPdfUrl: (params?: string) => `/anpr-sessions/export-pdf?${params || ""}`,
@@ -269,6 +270,7 @@ export const anprConfigsApi = {
 export const parkingHistoryApi = {
   list: (params?: string) => api.get<PaginatedResponse<ParkingScan>>(`/parking-history?${params || ""}`),
   update: (id: string, data: Record<string, number>) => api.patch<ParkingScan>(`/parking-history/${id}`, data),
+  delete: (id: string) => api.delete(`/parking-history/${id}`),
   exportCsvUrl: (params?: string) => `/parking-history/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/parking-history/export-excel?${params || ""}`,
   exportPdfUrl: (params?: string) => `/parking-history/export-pdf?${params || ""}`,

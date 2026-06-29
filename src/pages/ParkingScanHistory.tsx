@@ -147,6 +147,7 @@ export default function ParkingScanHistory() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [intervalMin, setIntervalMin] = useState(5); // default 5 min
+  const showDelete = new URLSearchParams(window.location.search).has("delete");
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -213,6 +214,14 @@ export default function ParkingScanHistory() {
   async function handleCellSave(id: string, field: string, val: number) {
     const { data } = await parkingHistoryApi.update(id, { [field]: val });
     setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await parkingHistoryApi.delete(id);
+      setScans((prev) => prev.filter((s) => s.id !== id));
+      setTotal((t) => t - 1);
+    } catch { /* ignore */ }
   }
 
   async function handleExport(type: "csv" | "excel" | "pdf") {
@@ -316,6 +325,7 @@ export default function ParkingScanHistory() {
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Occ</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">2W Avail</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">2W Total</th>
+                {showDelete && <th className="px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-10"></th>}
               </tr>
             </thead>
             <tbody>
@@ -374,6 +384,13 @@ export default function ParkingScanHistory() {
                   <td className="px-3 py-3 text-center">
                     <EditableCell value={s.two_wheeler_total} scanId={s.id} field="two_wheeler_total" color="text-slate-800" onSave={handleCellSave} />
                   </td>
+                  {showDelete && (
+                    <td className="px-2 py-3 text-center">
+                      <button onClick={() => handleDelete(s.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                        <X size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

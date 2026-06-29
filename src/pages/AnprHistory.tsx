@@ -76,6 +76,7 @@ export default function AnprHistory() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const showDelete = new URLSearchParams(window.location.search).has("delete");
 
   // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -152,6 +153,14 @@ export default function AnprHistory() {
 
   const activeFilterCount = [vehicleType, statusFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
   const isLive = datePreset === "today" && !customFrom && !customTo;
+
+  async function handleDelete(id: string) {
+    try {
+      await anprSessionsApi.delete(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setTotal((t) => t - 1);
+    } catch { /* ignore */ }
+  }
 
   function handleExport(type: "csv" | "excel" | "pdf") {
     const p = new URLSearchParams();
@@ -260,6 +269,7 @@ export default function AnprHistory() {
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Duration</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
+                {showDelete && <th className="px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-10"></th>}
               </tr>
             </thead>
             <tbody>
@@ -340,6 +350,13 @@ export default function AnprHistory() {
                   <td className="px-4 py-3">
                     <span className="text-[13px] text-slate-600">{s.location_name || "—"}</span>
                   </td>
+                  {showDelete && (
+                    <td className="px-2 py-3 text-center">
+                      <button onClick={() => handleDelete(s.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                        <X size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
