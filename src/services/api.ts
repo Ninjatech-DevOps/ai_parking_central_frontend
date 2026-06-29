@@ -268,6 +268,7 @@ export const anprConfigsApi = {
 // ─── Parking History (Simplified Scans) ───
 export const parkingHistoryApi = {
   list: (params?: string) => api.get<PaginatedResponse<ParkingScan>>(`/parking-history?${params || ""}`),
+  update: (id: string, data: Record<string, number>) => api.patch<ParkingScan>(`/parking-history/${id}`, data),
   exportCsvUrl: (params?: string) => `/parking-history/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/parking-history/export-excel?${params || ""}`,
   exportPdfUrl: (params?: string) => `/parking-history/export-pdf?${params || ""}`,
