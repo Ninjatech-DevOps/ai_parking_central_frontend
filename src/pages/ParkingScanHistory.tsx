@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { parkingHistoryApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
   Download, FileSpreadsheet, FileText,
-  X, Loader2, Image as ImageIcon, Clock,
+  X, Loader2, Image as ImageIcon, Clock, Check, Pencil,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { ParkingScan } from "@/types/api";
@@ -15,13 +15,11 @@ function ParkingScanHistorySkeleton() {
   return (
     <SkeletonShell>
       <SkeletonHeader action />
-      {/* Date-range / filter row */}
       <div className="flex flex-wrap items-center gap-3 mb-6 animate-pulse">
         <Skel className="w-72 h-10 rounded-xl" />
         <Skel className="w-44 h-10 rounded-xl" />
         <Skel className="w-44 h-10 rounded-xl" />
       </div>
-      {/* Table: Date/Time/Image/Location/Device/Car Occ·Avail·Total/2W Occ·Avail·Total */}
       <SkeletonTable rows={8} cols={11} />
     </SkeletonShell>
   );
@@ -33,6 +31,17 @@ const DATE_PRESETS = [
   { label: "This Week", key: "this_week" },
   { label: "This Month", key: "this_month" },
 ] as const;
+
+const INTERVAL_OPTIONS = [
+  { label: "All (30s)", value: 0 },
+  { label: "1 min", value: 1 },
+  { label: "2 min", value: 2 },
+  { label: "5 min", value: 5 },
+  { label: "10 min", value: 10 },
+  { label: "15 min", value: 15 },
+  { label: "30 min", value: 30 },
+  { label: "60 min", value: 60 },
+];
 
 function getPresetDates(key: string) {
   const now = new Date();
@@ -64,6 +73,69 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+// ── Inline Editable Cell ──
+function EditableCell({
+  value,
+  scanId,
+  field,
+  color,
+  onSave,
+}: {
+  value: number;
+  scanId: string;
+  field: string;
+  color: string;
+  onSave: (id: string, field: string, val: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(String(value)); }, [value]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  async function commit() {
+    const num = parseInt(draft, 10);
+    if (isNaN(num) || num < 0 || num === value) { setEditing(false); setDraft(String(value)); return; }
+    setSaving(true);
+    try {
+      await onSave(scanId, field, num);
+    } catch { setDraft(String(value)); }
+    setSaving(false);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center justify-center gap-1">
+        <input
+          ref={inputRef}
+          type="number"
+          min={0}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); setDraft(String(value)); } }}
+          onBlur={commit}
+          className="w-14 text-center text-[14px] font-bold border border-teal-400 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-300"
+          disabled={saving}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className={`text-[16px] font-bold cursor-pointer hover:bg-slate-100 rounded-lg px-2 py-0.5 transition-colors group inline-flex items-center gap-1 ${color}`}
+      title="Click to edit"
+    >
+      {value}
+      <Pencil size={10} className="opacity-0 group-hover:opacity-40 transition-opacity" />
+    </span>
+  );
+}
+
 const PAGE_SIZE = 20;
 
 export default function ParkingScanHistory() {
@@ -74,6 +146,7 @@ export default function ParkingScanHistory() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
+  const [intervalMin, setIntervalMin] = useState(5); // default 5 min
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -82,7 +155,6 @@ export default function ParkingScanHistory() {
   const [customTo, setCustomTo] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
-  // Draft values edited inside the filter modal; applied on "Apply Filters"
   const [draftPreset, setDraftPreset] = useState("today");
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
@@ -94,13 +166,16 @@ export default function ParkingScanHistory() {
   }
   function clearDraft() {
     setDraftPreset("today"); setDraftFrom(""); setDraftTo("");
-    resetFilters(); // also apply the cleared state so the table refreshes
+    resetFilters();
   }
 
-  function buildParams() {
+  function buildParams(forExport = false) {
     const p = new URLSearchParams();
-    p.set("page", String(page));
-    p.set("page_size", String(PAGE_SIZE));
+    if (!forExport) {
+      p.set("page", String(page));
+      p.set("page_size", String(PAGE_SIZE));
+    }
+    if (intervalMin > 0) p.set("interval_minutes", String(intervalMin));
     if (customFrom || customTo) {
       if (customFrom) p.set("start_date", new Date(customFrom).toISOString());
       if (customTo) p.set("end_date", new Date(customTo).toISOString());
@@ -122,10 +197,10 @@ export default function ParkingScanHistory() {
       setTotalPages(data.total_pages);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [page, datePreset, customFrom, customTo, areaId, locationId]);
+  }, [page, datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
 
   usePolling(fetchData, 15000);
-  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId]);
+  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
 
   function resetFilters() {
     setDatePreset("today"); setCustomFrom(""); setCustomTo("");
@@ -133,6 +208,12 @@ export default function ParkingScanHistory() {
   }
 
   const activeFilterCount = [customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+
+  // Inline-edit a scan's count; persist to backend and update the row in place.
+  async function handleCellSave(id: string, field: string, val: number) {
+    const { data } = await parkingHistoryApi.update(id, { [field]: val });
+    setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
+  }
 
   async function handleExport(type: "csv" | "excel" | "pdf") {
     if (exporting) return;
@@ -151,12 +232,7 @@ export default function ParkingScanHistory() {
     const ext = type === "csv" ? "csv" : type === "excel" ? "xlsx" : "pdf";
     const url = type === "csv" ? parkingHistoryApi.exportCsvUrl(ps) : type === "excel" ? parkingHistoryApi.exportExcelUrl(ps) : parkingHistoryApi.exportPdfUrl(ps);
     const ts = new Date().toISOString().slice(0, 10);
-    // Keep the button in a loading state until the file finishes downloading.
-    setExporting(type);
-    try {
-      await downloadFile(url, `parking_history_${ts}.${ext}`);
-    } catch { /* surfaced by axios interceptor */ }
-    finally { setExporting(null); }
+    downloadFile(url, `parking_history_${ts}.${ext}`);
   }
 
   if (loading && scans.length === 0) return <ParkingScanHistorySkeleton />;
@@ -166,7 +242,6 @@ export default function ParkingScanHistory() {
     ? scans.filter((s) => (s.location_name || "").toLowerCase().includes(q) || (s.device_name || "").toLowerCase().includes(q))
     : scans;
 
-  // "Today" view auto-refreshes (polling) — show a live indicator
   const isLive = datePreset === "today" && !customFrom && !customTo;
 
   return (
@@ -181,8 +256,21 @@ export default function ParkingScanHistory() {
           <p className="text-[13px] text-slate-400 mt-0.5">Detection scan records — one row per scan cycle</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => handleExport("csv")} disabled={!!exporting} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow disabled:opacity-60 disabled:cursor-not-allowed">
-            {exporting === "csv" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} {exporting === "csv" ? "Downloading..." : "CSV"}
+          {/* Interval selector */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 card-shadow">
+            <Clock size={12} className="text-slate-400" />
+            <select
+              value={intervalMin}
+              onChange={(e) => setIntervalMin(Number(e.target.value))}
+              className="text-[11px] font-semibold text-slate-600 bg-transparent border-none focus:outline-none cursor-pointer"
+            >
+              {INTERVAL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => handleExport("csv")} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow">
+            <Download size={12} /> CSV
           </button>
           <button onClick={() => handleExport("excel")} disabled={!!exporting} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-teal-600 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-xl px-3 py-2 transition-colors card-shadow disabled:opacity-60 disabled:cursor-not-allowed">
             {exporting === "excel" ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />} {exporting === "excel" ? "Downloading..." : "Excel"}
@@ -193,10 +281,9 @@ export default function ParkingScanHistory() {
         </div>
       </div>
 
-      {/* Search (separate) + Filters button */}
+      {/* Search + Filters */}
       <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location or device..." filterCount={activeFilterCount} onOpen={openFilters} />
 
-      {/* Inline Filter panel */}
       <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearDraft}>
         <FilterField label="Quick Range">
           <FilterSelect value={draftFrom || draftTo ? "" : draftPreset} onChange={(v) => { setDraftPreset(v); setDraftFrom(""); setDraftTo(""); }}>
@@ -276,22 +363,22 @@ export default function ParkingScanHistory() {
                     <span className="text-[11px] font-mono text-slate-500">{s.device_name || "—"}</span>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span>
+                    <EditableCell value={s.car_occupied} scanId={s.id} field="car_occupied" color={s.car_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span>
+                    <EditableCell value={s.car_available} scanId={s.id} field="car_available" color="text-emerald-600" onSave={handleCellSave} />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className="text-[16px] font-bold text-slate-800">{s.car_total}</span>
+                    <EditableCell value={s.car_total} scanId={s.id} field="car_total" color="text-slate-800" onSave={handleCellSave} />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className={`text-[16px] font-bold ${s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.two_wheeler_occupied}</span>
+                    <EditableCell value={s.two_wheeler_occupied} scanId={s.id} field="two_wheeler_occupied" color={s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className="text-[16px] font-bold text-emerald-600">{s.two_wheeler_available}</span>
+                    <EditableCell value={s.two_wheeler_available} scanId={s.id} field="two_wheeler_available" color="text-emerald-600" onSave={handleCellSave} />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className="text-[16px] font-bold text-slate-800">{s.two_wheeler_total}</span>
+                    <EditableCell value={s.two_wheeler_total} scanId={s.id} field="two_wheeler_total" color="text-slate-800" onSave={handleCellSave} />
                   </td>
                 </tr>
               ))}
