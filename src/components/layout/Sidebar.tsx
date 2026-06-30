@@ -26,6 +26,7 @@ const sections: SectionConfig[] = [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/parking-history", label: "Parking History", icon: Car, permissions: ["slots:view"] },
       { to: "/anpr-history", label: "ANPR History", icon: ScanLine, permissions: ["anpr:view"] },
+      { to: "/anpr-records", label: "ANPR Records", icon: ScanLine, permissions: ["anpr:view"] },
     ],
   },
   {
