@@ -466,3 +466,16 @@ export interface ParkingScan {
   camera_label: string | null;
   device_name: string | null;
 }
+
+// ─── Parking occupancy summary (latest scan per location, summed) ───
+export interface OccupancySummary {
+  location_name: string;
+  location_count: number;
+  car_total: number;
+  car_occupied: number;
+  car_available: number;
+  two_wheeler_total: number;
+  two_wheeler_occupied: number;
+  two_wheeler_available: number;
+  updated_at: string | null;
+}

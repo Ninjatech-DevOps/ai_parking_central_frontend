@@ -5,7 +5,7 @@ import type {
   Camera, CanvasResponse, ParkingSession, Role, PermissionItem,
   SharedLink, PublicViewResponse,
   AnprRecord, AnprSession, AnprDashboardSummary, AnprDashboardLocation,
-  AnprCameraConfig, ParkingScan,
+  AnprCameraConfig, ParkingScan, OccupancySummary,
 } from "@/types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -269,6 +269,8 @@ export const anprConfigsApi = {
 // ─── Parking History (Simplified Scans) ───
 export const parkingHistoryApi = {
   list: (params?: string) => api.get<PaginatedResponse<ParkingScan>>(`/parking-history?${params || ""}`),
+  occupancySummary: (params?: string) =>
+    api.get<OccupancySummary>(`/parking-history/occupancy-summary?${params || ""}`),
   update: (id: string, data: Record<string, number>) => api.patch<ParkingScan>(`/parking-history/${id}`, data),
   delete: (id: string) => api.delete(`/parking-history/${id}`),
   exportCsvUrl: (params?: string) => `/parking-history/export-csv?${params || ""}`,

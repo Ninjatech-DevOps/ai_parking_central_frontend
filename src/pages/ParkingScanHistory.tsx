@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type ElementType } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { parkingHistoryApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -6,10 +6,11 @@ import Pagination from "@/components/Pagination";
 import {
   Download, FileSpreadsheet, FileText,
   X, Loader2, Image as ImageIcon, Clock, Check, Pencil,
+  Car, Bike, CircleCheck,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
-import type { ParkingScan } from "@/types/api";
-import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
+import type { ParkingScan, OccupancySummary } from "@/types/api";
+import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel, SkeletonStatCards } from "@/components/Skeleton";
 
 function ParkingScanHistorySkeleton() {
   return (
@@ -22,6 +23,19 @@ function ParkingScanHistorySkeleton() {
       </div>
       <SkeletonTable rows={8} cols={11} />
     </SkeletonShell>
+  );
+}
+
+/** Occupancy summary card (same look as the Dashboard StatCard). */
+function StatCard({ label, value, icon: Icon, bg, text }: { label: string; value: number | string; icon: ElementType; bg: string; text: string }) {
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-4 flex flex-col items-center text-center transition-lift hover:card-shadow-hover">
+      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-2`}>
+        <Icon size={18} className={text} />
+      </div>
+      <p className={`text-[24px] font-extrabold leading-none ${text}`}>{value}</p>
+      <p className="text-[10px] text-slate-400 mt-1.5 uppercase tracking-wider font-bold">{label}</p>
+    </div>
   );
 }
 
@@ -141,6 +155,7 @@ const PAGE_SIZE = 20;
 export default function ParkingScanHistory() {
   const { areaId, locationId } = useFilter();
   const [scans, setScans] = useState<ParkingScan[]>([]);
+  const [summary, setSummary] = useState<OccupancySummary | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -201,6 +216,20 @@ export default function ParkingScanHistory() {
   }, [page, datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
 
   usePolling(fetchData, 15000);
+
+  // Current occupancy summary (latest scan per location, summed) — scope only,
+  // so it ignores date/interval filters and stays "live". Same data as the PDF.
+  const fetchSummary = useCallback(async () => {
+    const p = new URLSearchParams();
+    if (locationId) p.set("location_id", locationId);
+    else if (areaId) p.set("area_id", areaId);
+    try {
+      const { data } = await parkingHistoryApi.occupancySummary(p.toString());
+      setSummary(data);
+    } catch { /* ignore */ }
+  }, [areaId, locationId]);
+
+  usePolling(fetchSummary, 15000);
   useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
 
   function resetFilters() {
@@ -283,6 +312,20 @@ export default function ParkingScanHistory() {
           </button>
         </div>
       </div>
+
+      {/* Occupancy summary cards — latest scan per location, summed across scope */}
+      {summary === null ? (
+        <SkeletonStatCards count={6} cols={6} />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <StatCard label="Car Occupied" value={summary.car_occupied} icon={Car} bg="bg-red-50" text="text-red-500" />
+          <StatCard label="Car Available" value={summary.car_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+          <StatCard label="Car Total" value={summary.car_total} icon={Car} bg="bg-blue-50" text="text-blue-600" />
+          <StatCard label="2W Occupied" value={summary.two_wheeler_occupied} icon={Bike} bg="bg-red-50" text="text-red-500" />
+          <StatCard label="2W Available" value={summary.two_wheeler_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+          <StatCard label="2W Total" value={summary.two_wheeler_total} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
+        </div>
+      )}
 
       {/* Search + Filters */}
       <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location or device..." filterCount={activeFilterCount} onOpen={openFilters} />
