@@ -6,7 +6,7 @@ import Pagination from "@/components/Pagination";
 import {
   Car, Bike, Download, FileSpreadsheet, FileText,
   Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
-  Search, Trash2,
+  Search,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { AnprRecord } from "@/types/api";
@@ -202,11 +202,11 @@ export default function AnprRecords() {
             className="w-full pl-9 pr-3 h-9 text-[12px] bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 card-shadow"
           />
         </div>
-        <FilterToolbar open={filtersOpen} onToggle={() => setFiltersOpen(!filtersOpen)} count={[vehicleType, directionFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0)} onReset={resetFilters} />
+        <FilterToolbar filterCount={[vehicleType, directionFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0)} onOpen={() => setFiltersOpen(!filtersOpen)} />
       </div>
 
       {/* Filter Panel */}
-      <FilterPanel open={filtersOpen}>
+      <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={resetFilters}>
         <FilterField label="Quick Date">
           <div className="flex gap-1">
             {DATE_PRESETS.map((dp) => (
@@ -225,21 +225,24 @@ export default function AnprRecords() {
           </div>
         </FilterField>
         <FilterField label="Type">
-          <FilterSelect value={draftType} onChange={setDraftType} options={[{ value: "", label: "All" }, { value: "CAR", label: "Car" }, { value: "TWO_WHEELER", label: "Two Wheeler" }]} />
+          <FilterSelect value={draftType} onChange={setDraftType}>
+            <option value="">All</option>
+            <option value="CAR">Car</option>
+            <option value="TWO_WHEELER">Two Wheeler</option>
+          </FilterSelect>
         </FilterField>
         <FilterField label="Direction">
-          <FilterSelect value={draftDirection} onChange={setDraftDirection} options={[{ value: "", label: "All" }, { value: "IN", label: "Entry (IN)" }, { value: "OUT", label: "Exit (OUT)" }]} />
+          <FilterSelect value={draftDirection} onChange={setDraftDirection}>
+            <option value="">All</option>
+            <option value="IN">Entry (IN)</option>
+            <option value="OUT">Exit (OUT)</option>
+          </FilterSelect>
         </FilterField>
         <FilterField label="From">
           <FilterDateInput value={draftFrom} onChange={(v) => { setDraftFrom(v); setDraftPreset(""); }} />
         </FilterField>
         <FilterField label="To">
           <FilterDateInput value={draftTo} onChange={(v) => { setDraftTo(v); setDraftPreset(""); }} />
-        </FilterField>
-        <FilterField label="">
-          <button onClick={applyFilters} className="h-8 px-4 rounded-lg bg-teal-600 text-white text-[11px] font-semibold hover:bg-teal-700 transition-colors">
-            Apply
-          </button>
         </FilterField>
       </FilterPanel>
 
