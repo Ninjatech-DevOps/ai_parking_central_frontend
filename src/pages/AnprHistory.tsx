@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { anprSessionsApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -76,6 +76,9 @@ export default function AnprHistory() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
+  const reqRef = useRef(0);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const showDelete = new URLSearchParams(window.location.search).has("delete");
 
@@ -125,16 +128,33 @@ export default function AnprHistory() {
   }
 
   const fetchData = useCallback(async () => {
+    // Tag each request so a slow/out-of-order response can't overwrite a newer one.
+    const reqId = ++reqRef.current;
     try {
       const { data } = await anprSessionsApi.list(buildParams());
+      if (reqId !== reqRef.current) return;
       setSessions(data.items || []);
-      setTotal(data.total);
-      setTotalPages(data.total_pages);
-    } catch { /* ignore */ }
-    setLoading(false);
+      setTotal(data.total || 0);
+      setTotalPages(data.total_pages || 0);
+      setErrored(false);
+      setLoading(false);
+    } catch {
+      // Transient failure (e.g. backend still warming up): mark errored so we
+      // keep the spinner and retry quickly instead of showing a false "no data".
+      if (reqId !== reqRef.current) return;
+      setErrored(true);
+      setLoading(false);
+    }
   }, [page, plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId]);
 
   usePolling(fetchData, 15000);
+
+  // On a failed load, retry quickly so the user never has to reload manually.
+  useEffect(() => {
+    if (!errored) return;
+    retryRef.current = setTimeout(() => { fetchData(); }, 2500);
+    return () => { if (retryRef.current) clearTimeout(retryRef.current); };
+  }, [errored, fetchData]);
 
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId]);
@@ -258,7 +278,7 @@ export default function AnprHistory() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
-        {loading && (
+        {(loading || (errored && sessions.length === 0)) && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
             <Loader2 size={24} className="animate-spin text-teal-500" />
           </div>
@@ -280,7 +300,7 @@ export default function AnprHistory() {
               </tr>
             </thead>
             <tbody>
-              {sessions.length === 0 && !loading ? (
+              {sessions.length === 0 && !loading && !errored ? (
                 <tr>
                   <td colSpan={8} className="text-center py-20 text-slate-400">
                     <div className="flex flex-col items-center">
