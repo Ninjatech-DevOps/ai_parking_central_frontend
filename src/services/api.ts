@@ -243,6 +243,7 @@ export const anprDashboardApi = {
 
 export const anprRecordsApi = {
   list: (params?: string) => api.get<PaginatedResponse<AnprRecord>>(`/anpr-records?${params || ""}`),
+  update: (id: string, data: Record<string, unknown>) => api.patch<AnprRecord>(`/anpr-records/${id}`, data),
   searchPlates: (q: string) => api.get<{ plates: string[] }>(`/anpr-records/search-plates?q=${encodeURIComponent(q)}`),
   exportCsvUrl: (params?: string) => `/anpr-records/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/anpr-records/export-excel?${params || ""}`,
@@ -251,6 +252,7 @@ export const anprRecordsApi = {
 
 export const anprSessionsApi = {
   list: (params?: string) => api.get<PaginatedResponse<AnprSession>>(`/anpr-sessions?${params || ""}`),
+  update: (id: string, data: Record<string, unknown>) => api.patch<AnprSession>(`/anpr-sessions/${id}`, data),
   delete: (id: string) => api.delete(`/anpr-sessions/${id}`),
   exportCsvUrl: (params?: string) => `/anpr-sessions/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/anpr-sessions/export-excel?${params || ""}`,

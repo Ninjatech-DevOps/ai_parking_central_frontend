@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { anprRecordsApi, downloadFile } from "@/services/api";
+import { showSuccess, showError } from "@/lib/toast";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
@@ -86,6 +87,17 @@ export default function AnprRecords() {
 
   // Image preview
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Inline edit
+  async function handleInlineUpdate(id: string, field: string, value: string) {
+    try {
+      await anprRecordsApi.update(id, { [field]: value });
+      setRecords((prev) => prev.map((r) => r.id === id ? { ...r, [field]: value } : r));
+      showSuccess(`Updated ${field.replace("_", " ")}`);
+    } catch (err: any) {
+      showError(err?.response?.data?.detail || "Update failed");
+    }
+  }
 
   function buildParams() {
     const p = new URLSearchParams();
@@ -296,31 +308,46 @@ export default function AnprRecords() {
                     )}
                   </td>
 
-                  {/* Number Plate */}
+                  {/* Number Plate — editable */}
                   <td className="px-4 py-3">
-                    <span className={`text-[13px] font-bold ${r.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}>
-                      {r.number_plate || "N/A"}
-                    </span>
+                    <input
+                      defaultValue={r.number_plate || ""}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim().toUpperCase();
+                        if (v && v !== r.number_plate) handleInlineUpdate(r.id, "number_plate", v);
+                        else e.target.value = r.number_plate || "";
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      className={`text-[13px] font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-28 ${r.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
+                    />
                   </td>
 
-                  {/* Vehicle Type */}
+                  {/* Vehicle Type — editable */}
                   <td className="px-3 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2 py-1 ${
-                      r.vehicle_type === "CAR" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"
-                    }`}>
-                      {r.vehicle_type === "CAR" ? <Car size={12} /> : <Bike size={12} />}
-                      {r.vehicle_type === "CAR" ? "Car" : "2W"}
-                    </span>
+                    <select
+                      value={r.vehicle_type}
+                      onChange={(e) => handleInlineUpdate(r.id, "vehicle_type", e.target.value)}
+                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                        r.vehicle_type === "CAR" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"
+                      }`}
+                    >
+                      <option value="CAR">Car</option>
+                      <option value="TWO_WHEELER">2W</option>
+                    </select>
                   </td>
 
-                  {/* Direction */}
+                  {/* Direction — editable */}
                   <td className="px-3 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold rounded-lg px-2.5 py-1 ${
-                      r.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
-                    }`}>
-                      {r.direction === "IN" ? <ArrowDownToLine size={11} /> : <ArrowUpFromLine size={11} />}
-                      {r.direction}
-                    </span>
+                    <select
+                      value={r.direction}
+                      onChange={(e) => handleInlineUpdate(r.id, "direction", e.target.value)}
+                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                        r.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
+                      }`}
+                    >
+                      <option value="IN">IN</option>
+                      <option value="OUT">OUT</option>
+                    </select>
                   </td>
 
                   {/* Date & Time */}

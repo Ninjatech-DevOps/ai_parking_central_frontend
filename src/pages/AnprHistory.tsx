@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { anprSessionsApi, downloadFile } from "@/services/api";
+import { showSuccess, showError } from "@/lib/toast";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
@@ -96,6 +97,17 @@ export default function AnprHistory() {
 
   // Image preview
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Inline edit
+  async function handleInlineUpdate(id: string, field: string, value: string) {
+    try {
+      await anprSessionsApi.update(id, { [field]: value });
+      setSessions((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
+      showSuccess(`Updated ${field.replace("_", " ")}`);
+    } catch (err: any) {
+      showError(err?.response?.data?.detail || "Update failed");
+    }
+  }
 
   function buildParams() {
     const p = new URLSearchParams();
@@ -309,15 +321,28 @@ export default function AnprHistory() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-[14px] font-bold text-teal-700 tracking-wide font-mono">{s.number_plate}</span>
+                    <input
+                      defaultValue={s.number_plate || ""}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim().toUpperCase();
+                        if (v && v !== s.number_plate) handleInlineUpdate(s.id, "number_plate", v);
+                        else e.target.value = s.number_plate || "";
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      className={`text-[14px] font-bold font-mono tracking-wide bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-32 ${s.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
+                    />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${
-                      s.vehicle_type === "CAR" ? "text-blue-700 bg-blue-50" : "text-indigo-700 bg-indigo-50"
-                    }`}>
-                      {s.vehicle_type === "CAR" ? <Car size={11} /> : <Bike size={11} />}
-                      {s.vehicle_type === "CAR" ? "Car" : "2W"}
-                    </span>
+                    <select
+                      value={s.vehicle_type}
+                      onChange={(e) => handleInlineUpdate(s.id, "vehicle_type", e.target.value)}
+                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                        s.vehicle_type === "CAR" ? "text-blue-700 bg-blue-50" : "text-indigo-700 bg-indigo-50"
+                      }`}
+                    >
+                      <option value="CAR">Car</option>
+                      <option value="TWO_WHEELER">2W</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
