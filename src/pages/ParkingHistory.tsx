@@ -165,6 +165,16 @@ export default function ParkingHistory() {
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // Close image preview on Escape key
+  useEffect(() => {
+    if (!previewImage) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewImage(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImage]);
+
   const activeFilterCount = [selectedArea, selectedLocation, selectedCamera, selectedStatus, selectedEventType, minDuration || maxDuration, startDate, endDate].filter(Boolean).length;
   const isLive = !startDate && !endDate;
 
