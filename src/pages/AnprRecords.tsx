@@ -7,7 +7,7 @@ import Pagination from "@/components/Pagination";
 import {
   Car, Bike, Download, FileSpreadsheet, FileText,
   Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
-  Search,
+  Search, Trash2,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { AnprRecord } from "@/types/api";
