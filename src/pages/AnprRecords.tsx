@@ -235,19 +235,13 @@ export default function AnprRecords() {
       </div>
 
       {/* Search + Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search plate..."
-            value={plateSearch}
-            onChange={(e) => { setPlateSearch(e.target.value.toUpperCase()); setPage(1); }}
-            className="w-full pl-9 pr-3 h-9 text-[12px] bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 card-shadow"
-          />
-        </div>
-        <FilterToolbar filterCount={[vehicleType, directionFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0)} onOpen={() => setFiltersOpen(!filtersOpen)} />
-      </div>
+      <FilterToolbar
+        search={plateSearch}
+        onSearch={(v) => { setPlateSearch(v.toUpperCase()); setPage(1); }}
+        searchPlaceholder="Search plate..."
+        filterCount={[vehicleType, directionFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0)}
+        onOpen={() => setFiltersOpen(!filtersOpen)}
+      />
 
       {/* Filter Panel */}
       <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={resetFilters}>
