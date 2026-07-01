@@ -105,6 +105,7 @@ export default function SharedLinks() {
   const [formAreaFilter, setFormAreaFilter] = useState("");
   const [formScopeId, setFormScopeId] = useState("");
   const [formCameraIds, setFormCameraIds] = useState<string[]>([]);
+  const [formLocationIds, setFormLocationIds] = useState<string[]>([]);
   const [formExpiry, setFormExpiry] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
   const [formPages, setFormPages] = useState<string[]>(PAGE_OPTIONS.map((p) => p.value));
@@ -191,6 +192,7 @@ export default function SharedLinks() {
     setFormAreaFilter("");
     setFormScopeId("");
     setFormCameraIds([]);
+    setFormLocationIds([]);
     setFormExpiry("");
     setFormIsActive(true);
     setFormPages(PAGE_OPTIONS.map((p) => p.value));
@@ -242,6 +244,8 @@ export default function SharedLinks() {
         };
         if (formScopeType === "CAMERA") {
           payload.camera_ids = formCameraIds;
+        } else if (formScopeType === "LOCATION") {
+          payload.camera_ids = formLocationIds; // multi-location uses camera_ids field
         } else {
           payload.scope_id = formScopeId;
         }
@@ -497,24 +501,37 @@ export default function SharedLinks() {
                     <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Filter by Area</Label>
                     <SearchSelect
                       value={formAreaFilter}
-                      onValueChange={(v) => { setFormAreaFilter(v); setFormScopeId(""); }}
+                      onValueChange={(v) => { setFormAreaFilter(v); setFormLocationIds([]); }}
                       options={areas.map((a) => ({ value: a.id, label: a.name }))}
                       placeholder="Select area first..."
                       searchPlaceholder="Search area..."
                       className="w-full h-10"
                     />
                   </div>
-                  {formAreaFilter && (
+                  {formAreaFilter && locations.length > 0 && (
                     <div>
-                      <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Select Location</Label>
-                      <SearchSelect
-                        value={formScopeId}
-                        onValueChange={setFormScopeId}
-                        options={locations.map((l) => ({ value: l.id, label: l.name }))}
-                        placeholder="Search location..."
-                        searchPlaceholder="Search..."
-                        className="w-full h-10"
-                      />
+                      <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Select Location(s)</Label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-3">
+                        {locations.map((loc) => (
+                          <label key={loc.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 rounded-lg p-1.5 -m-1.5">
+                            <input
+                              type="checkbox"
+                              checked={formLocationIds.includes(loc.id)}
+                              onChange={() => {
+                                setFormLocationIds((prev) =>
+                                  prev.includes(loc.id) ? prev.filter((id) => id !== loc.id) : [...prev, loc.id]
+                                );
+                              }}
+                              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                            />
+                            <span className="text-[13px] text-slate-700">{loc.name}</span>
+                            <span className={`ml-auto text-[10px] font-bold uppercase rounded-lg px-2 py-0.5 ${loc.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{loc.is_active ? "Active" : "Inactive"}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {formLocationIds.length > 0 && (
+                        <p className="text-[11px] text-teal-600 font-semibold mt-1.5">{formLocationIds.length} location(s) selected</p>
+                      )}
                     </div>
                   )}
                 </>
@@ -695,7 +712,7 @@ export default function SharedLinks() {
             <Button type="button" variant="ghost" onClick={() => setShowForm(false)} className="rounded-xl text-[13px]">Cancel</Button>
             <Button
               type="submit"
-              disabled={formSaving || (!editing && !formScopeId && formScopeType !== "CAMERA") || (!editing && formScopeType === "CAMERA" && formCameraIds.length === 0)}
+              disabled={formSaving || (!editing && formScopeType === "AREA" && !formScopeId) || (!editing && formScopeType === "LOCATION" && formLocationIds.length === 0) || (!editing && formScopeType === "CAMERA" && formCameraIds.length === 0)}
               className="rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-[13px] font-semibold shadow-md shadow-teal-600/20"
             >
               {formSaving ? "Saving..." : editing ? "Save Changes" : "Generate Link"}
