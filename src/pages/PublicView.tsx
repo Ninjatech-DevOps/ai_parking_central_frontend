@@ -314,11 +314,11 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
             <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Total cars", value: summary.car_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
                 { label: "Occupied", value: summary.car_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
-                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
                   <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
                 </div>
@@ -329,11 +329,11 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
             <p className="text-[14px] font-bold text-slate-800 mb-2">Bikes</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
-                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
                   <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
                 </div>
@@ -347,32 +347,28 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="bg-slate-50/80 border-b border-slate-100">
-                {f("date") && <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>}
-                {f("time") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Time</th>}
-                {f("image") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Image</th>}
-                {f("device") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Device</th>}
-                {f("car_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Occ</th>}
+                {f("image") && <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Snapshot</th>}
+                {f("date") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date & Time</th>}
+                {f("car_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">Car Occ</th>}
                 {f("car_available") && <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Car Avail</th>}
-                {f("car_total") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Car Total</th>}
-                {f("2w_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Occ</th>}
+                {f("car_total") && <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Total</th>}
+                {f("2w_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">2W Occ</th>}
                 {f("2w_available") && <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">2W Avail</th>}
-                {f("2w_total") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">2W Total</th>}
+                {f("2w_total") && <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Total</th>}
               </tr></thead>
               <tbody>
                 {scans.length === 0 && !loading ? (
                   <tr><td colSpan={11} className="text-center py-16 text-slate-400"><div className="flex flex-col items-center"><div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3"><Clock size={24} className="text-slate-300" /></div><p className="text-[14px] font-semibold">No parking scans found</p></div></td></tr>
                 ) : scans.map((s, idx) => (
                   <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 !== 0 ? "bg-slate-25" : ""}`}>
-                    {f("date") && <td className="px-6 py-3"><span className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</span></td>}
-                    {f("time") && <td className="px-3 py-3"><span className="text-[12px] text-slate-500">{formatTime(s.recorded_at)}</span></td>}
-                    {f("image") && <td className="px-3 py-3">{s.image_url ? <button onClick={() => setPreviewImg(s.image_url)} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"><img src={s.image_url} alt="" className="w-full h-full object-cover" /></button> : <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={14} className="text-slate-300" /></div>}</td>}
-                    {f("device") && <td className="px-3 py-3"><span className="text-[11px] font-mono text-slate-500">{s.device_name || "—"}</span></td>}
+                    {f("image") && <td className="px-4 py-3">{s.image_url ? <button onClick={() => setPreviewImg(s.image_url)} className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"><img src={s.image_url} alt="" className="w-full h-full object-cover" /></button> : <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={14} className="text-slate-300" /></div>}</td>}
+                    {f("date") && <td className="px-3 py-3"><p className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</p><p className="text-[11px] text-slate-400">{formatTime(s.recorded_at)}</p></td>}
                     {f("car_occupied") && <td className="px-3 py-3 text-center"><span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span></td>}
                     {f("car_available") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span></td>}
-                    {f("car_total") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-slate-800">{s.car_total}</span></td>}
+                    {f("car_total") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-blue-700">{s.car_total}</span></td>}
                     {f("2w_occupied") && <td className="px-3 py-3 text-center"><span className={`text-[16px] font-bold ${s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.two_wheeler_occupied}</span></td>}
                     {f("2w_available") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-emerald-600">{s.two_wheeler_available}</span></td>}
-                    {f("2w_total") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-slate-800">{s.two_wheeler_total}</span></td>}
+                    {f("2w_total") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-indigo-700">{s.two_wheeler_total}</span></td>}
                   </tr>
                 ))}
               </tbody>
@@ -524,12 +520,12 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "Total cars", value: summary.car_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
                 { label: "In", value: summary.car_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
                 { label: "Out", value: Math.max(0, summary.car_total - summary.car_occupied - summary.car_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
                 { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
-                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
                   <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
                 </div>
@@ -540,12 +536,12 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             <p className="text-[14px] font-bold text-slate-800 mb-2">Two Wheeler</p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "In", value: summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
                 { label: "Out", value: Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
-                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
                   <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
                 </div>
