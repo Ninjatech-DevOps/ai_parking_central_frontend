@@ -283,6 +283,14 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
   return (
     <div className="px-4 sm:px-6 py-4">
       <div className="max-w-7xl mx-auto space-y-4">
+        {/* Location name in header */}
+        {summary?.location_name && summary.location_name !== "All locations" && (
+          <div className="flex items-center gap-2 mb-1">
+            <MapPin size={14} className="text-teal-500" />
+            <span className="text-[15px] font-bold text-slate-800">{summary.location_name}</span>
+            {summary.updated_at && <span className="text-[11px] text-slate-400 ml-2">Updated {summary.updated_at}</span>}
+          </div>
+        )}
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
@@ -309,7 +317,6 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
                 {f("date") && <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>}
                 {f("time") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Time</th>}
                 {f("image") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Image</th>}
-                {f("location") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>}
                 {f("device") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Device</th>}
                 {f("car_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Occ</th>}
                 {f("car_available") && <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Car Avail</th>}
@@ -326,7 +333,6 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
                     {f("date") && <td className="px-6 py-3"><span className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</span></td>}
                     {f("time") && <td className="px-3 py-3"><span className="text-[12px] text-slate-500">{formatTime(s.recorded_at)}</span></td>}
                     {f("image") && <td className="px-3 py-3">{s.image_url ? <button onClick={() => setPreviewImg(s.image_url)} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"><img src={s.image_url} alt="" className="w-full h-full object-cover" /></button> : <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={14} className="text-slate-300" /></div>}</td>}
-                    {f("location") && <td className="px-3 py-3"><span className="text-[12px] font-semibold text-slate-700">{s.location_name || "—"}</span></td>}
                     {f("device") && <td className="px-3 py-3"><span className="text-[11px] font-mono text-slate-500">{s.device_name || "—"}</span></td>}
                     {f("car_occupied") && <td className="px-3 py-3 text-center"><span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span></td>}
                     {f("car_available") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span></td>}
