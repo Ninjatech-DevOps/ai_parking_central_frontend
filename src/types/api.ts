@@ -285,6 +285,11 @@ export interface ParkingSession {
 }
 
 // ─── Shared Links ───
+export interface ViewConfig {
+  pages: string[];
+  fields: Record<string, string[]>;
+}
+
 export interface SharedLink {
   id: string;
   token: string;
@@ -296,6 +301,7 @@ export interface SharedLink {
   expires_at: string | null;
   is_active: boolean;
   view_count: number;
+  view_config: ViewConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -310,6 +316,7 @@ export interface PublicLocationData {
 export interface PublicViewResponse {
   name: string | null;
   scope_type: string;
+  view_config: ViewConfig | null;
   locations: PublicLocationData[];
   total_summary: { total: number; available: number; occupied: number; obstructed: number };
 }

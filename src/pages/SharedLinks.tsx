@@ -27,6 +27,50 @@ const EXPIRY_OPTIONS = [
   { value: "90", label: "90 Days" },
 ];
 
+const PAGE_OPTIONS = [
+  { value: "dashboard_parking", label: "Dashboard - AI Parking" },
+  { value: "dashboard_anpr", label: "Dashboard - ANPR" },
+  { value: "parking_history", label: "AI Parking History" },
+  { value: "anpr_records", label: "ANPR Records" },
+  { value: "anpr_history", label: "ANPR History" },
+];
+
+const FIELD_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  anpr_records: [
+    { value: "image", label: "Image" },
+    { value: "number_plate", label: "Number Plate" },
+    { value: "vehicle_type", label: "Vehicle Type" },
+    { value: "direction", label: "Direction" },
+    { value: "date_time", label: "Date & Time" },
+    { value: "gemini", label: "Gemini Result" },
+    { value: "paddle", label: "Paddle Result" },
+    { value: "location", label: "Location" },
+  ],
+  anpr_history: [
+    { value: "image", label: "Image" },
+    { value: "number_plate", label: "Number Plate" },
+    { value: "vehicle_type", label: "Vehicle Type" },
+    { value: "entry_time", label: "Entry Time" },
+    { value: "exit_time", label: "Exit Time" },
+    { value: "duration", label: "Duration" },
+    { value: "status", label: "Status" },
+    { value: "location", label: "Location" },
+  ],
+  parking_history: [
+    { value: "date", label: "Date" },
+    { value: "time", label: "Time" },
+    { value: "image", label: "Image" },
+    { value: "location", label: "Location" },
+    { value: "device", label: "Device" },
+    { value: "car_occupied", label: "Car Occupied" },
+    { value: "car_available", label: "Car Available" },
+    { value: "car_total", label: "Car Total" },
+    { value: "2w_occupied", label: "2W Occupied" },
+    { value: "2w_available", label: "2W Available" },
+    { value: "2w_total", label: "2W Total" },
+  ],
+};
+
 function timeUntil(dateStr: string): string {
   const now = Date.now();
   const target = new Date(dateStr).getTime();
@@ -63,6 +107,8 @@ export default function SharedLinks() {
   const [formCameraIds, setFormCameraIds] = useState<string[]>([]);
   const [formExpiry, setFormExpiry] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formPages, setFormPages] = useState<string[]>(PAGE_OPTIONS.map((p) => p.value));
+  const [formFields, setFormFields] = useState<Record<string, string[]>>({});
 
   // Scope dropdown data
   const [areas, setAreas] = useState<Area[]>([]);
@@ -147,6 +193,8 @@ export default function SharedLinks() {
     setFormCameraIds([]);
     setFormExpiry("");
     setFormIsActive(true);
+    setFormPages(PAGE_OPTIONS.map((p) => p.value));
+    setFormFields({});
     setShowForm(true);
   }
 
@@ -155,6 +203,8 @@ export default function SharedLinks() {
     setFormName(link.name || "");
     setFormExpiry("");
     setFormIsActive(link.is_active);
+    setFormPages(link.view_config?.pages || PAGE_OPTIONS.map((p) => p.value));
+    setFormFields(link.view_config?.fields || {});
     setShowForm(true);
   }
 
@@ -163,10 +213,11 @@ export default function SharedLinks() {
     setFormSaving(true);
     try {
       if (editing) {
-        // Edit mode — only name, is_active, expires_at
+        // Edit mode — name, is_active, expires_at, view_config
         const payload: Record<string, unknown> = {
           name: formName || null,
           is_active: formIsActive,
+          view_config: { pages: formPages, fields: formFields },
         };
         if (formExpiry) {
           const d = new Date();
@@ -187,6 +238,7 @@ export default function SharedLinks() {
           name: formName || null,
           scope_type: formScopeType,
           expires_at: expiresAt,
+          view_config: { pages: formPages, fields: formFields },
         };
         if (formScopeType === "CAMERA") {
           payload.camera_ids = formCameraIds;
@@ -323,6 +375,7 @@ export default function SharedLinks() {
             <TableRow className="bg-slate-50/60">
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Name</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Scope</TableHead>
+              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pages</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Expires</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Created</TableHead>
@@ -332,7 +385,7 @@ export default function SharedLinks() {
           <TableBody>
             {links.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-slate-400 text-[13px]">
+                <TableCell colSpan={7} className="text-center py-12 text-slate-400 text-[13px]">
                   No shared links yet. Create one to get started.
                 </TableCell>
               </TableRow>
@@ -346,6 +399,11 @@ export default function SharedLinks() {
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 text-teal-700 bg-teal-50">
                     {getScopeLabel(link)}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {link.view_config?.pages?.length || PAGE_OPTIONS.length} / {PAGE_OPTIONS.length}
                   </span>
                 </TableCell>
                 <TableCell>
@@ -510,6 +568,87 @@ export default function SharedLinks() {
                 </>
               )}
             </>
+          )}
+
+          {/* Pages Selection */}
+          <div>
+            <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Visible Pages</Label>
+            <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+              {PAGE_OPTIONS.map((po) => (
+                <label key={po.value} className="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 rounded-lg p-1.5 -m-1.5">
+                  <input
+                    type="checkbox"
+                    checked={formPages.includes(po.value)}
+                    onChange={() => {
+                      setFormPages((prev) =>
+                        prev.includes(po.value) ? prev.filter((v) => v !== po.value) : [...prev, po.value]
+                      );
+                    }}
+                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-[13px] text-slate-700">{po.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Field Config for pages that support it */}
+          {formPages.filter((p) => FIELD_OPTIONS[p]).length > 0 && (
+            <div>
+              <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Visible Fields per Page</Label>
+              <div className="space-y-3">
+                {formPages.filter((p) => FIELD_OPTIONS[p]).map((pageKey) => {
+                  const pageLabel = PAGE_OPTIONS.find((po) => po.value === pageKey)?.label || pageKey;
+                  const fields = FIELD_OPTIONS[pageKey];
+                  const selected = formFields[pageKey] || fields.map((f) => f.value);
+                  const allSelected = selected.length === fields.length;
+                  return (
+                    <div key={pageKey} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                        <span className="text-[12px] font-semibold text-slate-600">{pageLabel}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormFields((prev) => ({
+                              ...prev,
+                              [pageKey]: allSelected ? [] : fields.map((f) => f.value),
+                            }));
+                          }}
+                          className="text-[10px] font-semibold text-teal-600 hover:text-teal-700"
+                        >
+                          {allSelected ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 p-2.5">
+                        {fields.map((f) => {
+                          const isChecked = selected.includes(f.value);
+                          return (
+                            <button
+                              key={f.value}
+                              type="button"
+                              onClick={() => {
+                                setFormFields((prev) => {
+                                  const cur = prev[pageKey] || fields.map((ff) => ff.value);
+                                  const next = isChecked ? cur.filter((v) => v !== f.value) : [...cur, f.value];
+                                  return { ...prev, [pageKey]: next };
+                                });
+                              }}
+                              className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                                isChecked
+                                  ? "bg-teal-600 text-white"
+                                  : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {editing && (

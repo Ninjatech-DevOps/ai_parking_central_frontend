@@ -227,6 +227,16 @@ export const sharedLinksApi = {
 
 export const publicViewApi = {
   get: (token: string) => api.get<PublicViewResponse>(`/public/view/${token}`),
+  parkingHistory: (token: string, params?: string) =>
+    api.get<PaginatedResponse<ParkingScan>>(`/public/view/${token}/parking-history?${params || ""}`),
+  occupancySummary: (token: string) =>
+    api.get<OccupancySummary>(`/public/view/${token}/parking-history/occupancy-summary`),
+  anprRecords: (token: string, params?: string) =>
+    api.get<PaginatedResponse<AnprRecord>>(`/public/view/${token}/anpr-records?${params || ""}`),
+  anprSessions: (token: string, params?: string) =>
+    api.get<PaginatedResponse<AnprSession>>(`/public/view/${token}/anpr-sessions?${params || ""}`),
+  anprDashboard: (token: string) =>
+    api.get<any>(`/public/view/${token}/anpr-dashboard`),
 };
 
 // ─── Notification Preferences ───
