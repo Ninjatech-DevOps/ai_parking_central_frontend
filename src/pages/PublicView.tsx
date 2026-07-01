@@ -276,10 +276,27 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
         publicViewApi.parkingHistory(token, p.toString()),
         publicViewApi.occupancySummary(token),
       ]);
-      setScans(scanRes.data.items || []);
+      const items = scanRes.data.items || [];
+      setScans(items);
       setTotal(scanRes.data.total || 0);
       setTotalPages(scanRes.data.total_pages || 0);
-      setSummary(summaryRes.data);
+
+      // For "today" filter: use the latest scan row as summary so cards
+      // are locked to the 10AM-6PM window (not live after 6PM)
+      if (dateFilter === "today" && items.length > 0 && page === 1) {
+        const latest = items[0]; // first row = most recent scan in range
+        setSummary({
+          ...summaryRes.data,
+          car_occupied: latest.car_occupied,
+          car_available: latest.car_available,
+          car_total: latest.car_total,
+          two_wheeler_occupied: latest.two_wheeler_occupied,
+          two_wheeler_available: latest.two_wheeler_available,
+          two_wheeler_total: latest.two_wheeler_total,
+        });
+      } else {
+        setSummary(summaryRes.data);
+      }
     } catch { /* */ }
     setLoading(false);
   }, [token, page]);
@@ -326,10 +343,10 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
             </div>
           </div>
           <div>
-            <p className="text-[14px] font-bold text-slate-800 mb-2">Bikes</p>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+                { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
@@ -533,10 +550,10 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             </div>
           </div>
           <div>
-            <p className="text-[14px] font-bold text-slate-800 mb-2">Two Wheeler</p>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+                { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "In", value: summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
                 { label: "Out", value: Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
