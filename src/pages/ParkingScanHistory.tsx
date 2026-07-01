@@ -84,7 +84,17 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const d = new Date(iso);
+  // Round to nearest 5 minutes
+  const min = d.getMinutes();
+  const rounded = Math.round(min / 5) * 5;
+  if (rounded === 60) {
+    d.setHours(d.getHours() + 1);
+    d.setMinutes(0);
+  } else {
+    d.setMinutes(rounded);
+  }
+  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 // ── Inline Editable Cell ──
@@ -258,11 +268,22 @@ export default function ParkingScanHistory() {
     const ps = buildParams(true);
     const ext = type === "csv" ? "csv" : type === "excel" ? "xlsx" : "pdf";
     const url = type === "csv" ? parkingHistoryApi.exportCsvUrl(ps) : type === "excel" ? parkingHistoryApi.exportExcelUrl(ps) : parkingHistoryApi.exportPdfUrl(ps);
-    const ts = new Date().toISOString().slice(0, 10);
-    // Keep the button in a loading state until the file finishes downloading.
+
+    // Build filename: LOCATION-FROM-TO-DATE.ext
+    const loc = (summary?.location_name || "All").replace(/[^a-zA-Z0-9]+/g, "_").replace(/_+$/, "");
+    const now = new Date();
+    const fmtH = (d: Date) => d.toLocaleTimeString("en-IN", { hour: "2-digit", hour12: true }).replace(/\s/g, "").toUpperCase();
+    const fmtD = (d: Date) => d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }).replace(/\s/g, "");
+    let fromLabel = "", toLabel = "";
+    if (customFrom) { const f = new Date(customFrom); fromLabel = fmtH(f); toLabel = customTo ? fmtH(new Date(customTo)) : fmtH(now); }
+    else if (datePreset === "today") { fromLabel = "12AM"; toLabel = fmtH(now); }
+    else if (datePreset === "yesterday") { fromLabel = "12AM"; toLabel = "11PM"; }
+    const datePart = fmtD(now);
+    const filename = `${loc}${fromLabel ? `-${fromLabel}-${toLabel}` : ""}-${datePart}.${ext}`;
+
     setExporting(type);
     try {
-      await downloadFile(url, `parking_history_${ts}.${ext}`);
+      await downloadFile(url, filename);
     } catch { /* surfaced by axios interceptor */ }
     finally { setExporting(null); }
   }
