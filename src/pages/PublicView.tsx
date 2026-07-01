@@ -258,9 +258,13 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
       if (dateFilter === "today") {
-        const { start, end } = getTodayRange();
-        p.set("start_date", start);
-        p.set("end_date", end);
+        // Show only 10 AM – 6 PM, sampled every 5 min
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
+        p.set("start_date", todayStart.toISOString());
+        p.set("end_date", todayEnd.toISOString());
+        p.set("interval_minutes", "5");
       }
       const [scanRes, summaryRes] = await Promise.all([
         publicViewApi.parkingHistory(token, p.toString()),
