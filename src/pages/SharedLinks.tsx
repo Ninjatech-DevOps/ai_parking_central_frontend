@@ -110,6 +110,7 @@ export default function SharedLinks() {
   const [formIsActive, setFormIsActive] = useState(true);
   const [formPages, setFormPages] = useState<string[]>(PAGE_OPTIONS.map((p) => p.value));
   const [formFields, setFormFields] = useState<Record<string, string[]>>({});
+  const [formDateFilter, setFormDateFilter] = useState<string>("today");
 
   // Scope dropdown data
   const [areas, setAreas] = useState<Area[]>([]);
@@ -198,6 +199,7 @@ export default function SharedLinks() {
     setFormIsActive(true);
     setFormPages(PAGE_OPTIONS.map((p) => p.value));
     setFormFields({});
+    setFormDateFilter("today");
     setShowForm(true);
   }
 
@@ -208,6 +210,7 @@ export default function SharedLinks() {
     setFormIsActive(link.is_active);
     setFormPages(link.view_config?.pages || PAGE_OPTIONS.map((p) => p.value));
     setFormFields(link.view_config?.fields || {});
+    setFormDateFilter((link.view_config as any)?.date_filter || "today");
     setShowForm(true);
   }
 
@@ -220,7 +223,7 @@ export default function SharedLinks() {
         const payload: Record<string, unknown> = {
           name: formName || null,
           is_active: formIsActive,
-          view_config: { pages: formPages, fields: formFields },
+          view_config: { pages: formPages, fields: formFields, date_filter: formDateFilter },
         };
         if (formExpiry) {
           const d = new Date();
@@ -241,7 +244,7 @@ export default function SharedLinks() {
           name: formName || null,
           scope_type: formScopeType,
           expires_at: expiresAt,
-          view_config: { pages: formPages, fields: formFields },
+          view_config: { pages: formPages, fields: formFields, date_filter: formDateFilter },
         };
         if (formScopeType === "CAMERA") {
           payload.camera_ids = formCameraIds;
@@ -586,6 +589,33 @@ export default function SharedLinks() {
               )}
             </>
           )}
+
+          {/* Date Filter */}
+          <div>
+            <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Data Range</Label>
+            <div className="flex items-center gap-2">
+              {[
+                { value: "today", label: "Today Only" },
+                { value: "all", label: "All Data" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFormDateFilter(opt.value)}
+                  className={`flex-1 h-10 rounded-xl text-[13px] font-semibold border transition-all ${
+                    formDateFilter === opt.value
+                      ? "border-teal-300 bg-teal-50 text-teal-700"
+                      : "border-slate-200 bg-white text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {formDateFilter === "today" ? "Public view will only show today's records" : "Public view will show all historical data"}
+            </p>
+          </div>
 
           {/* Pages Selection */}
           <div>

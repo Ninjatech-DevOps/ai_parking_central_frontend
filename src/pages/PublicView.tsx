@@ -252,12 +252,16 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "parking_history", field);
 
+  const dateFilter = (viewConfig as any)?.date_filter || "today";
+
   const fetchData = useCallback(async () => {
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-      const { start, end } = getTodayRange();
-      p.set("start_date", start);
-      p.set("end_date", end);
+      if (dateFilter === "today") {
+        const { start, end } = getTodayRange();
+        p.set("start_date", start);
+        p.set("end_date", end);
+      }
       const [scanRes, summaryRes] = await Promise.all([
         publicViewApi.parkingHistory(token, p.toString()),
         publicViewApi.occupancySummary(token),
@@ -350,13 +354,16 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "anpr_records", field);
+  const dateFilter = (viewConfig as any)?.date_filter || "today";
 
   const fetchData = useCallback(async () => {
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-      const { start, end } = getTodayRange();
-      p.set("start_date", start);
-      p.set("end_date", end);
+      if (dateFilter === "today") {
+        const { start, end } = getTodayRange();
+        p.set("start_date", start);
+        p.set("end_date", end);
+      }
       if (plateSearch) p.set("number_plate", plateSearch);
       const { data } = await publicViewApi.anprRecords(token, p.toString());
       setRecords(data.items || []);
@@ -427,13 +434,16 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "anpr_history", field);
+  const dateFilter = (viewConfig as any)?.date_filter || "today";
 
   const fetchData = useCallback(async () => {
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-      const { start, end } = getTodayRange();
-      p.set("start_date", start);
-      p.set("end_date", end);
+      if (dateFilter === "today") {
+        const { start, end } = getTodayRange();
+        p.set("start_date", start);
+        p.set("end_date", end);
+      }
       if (plateSearch) p.set("number_plate", plateSearch);
       const { data } = await publicViewApi.anprSessions(token, p.toString());
       setSessions(data.items || []);
