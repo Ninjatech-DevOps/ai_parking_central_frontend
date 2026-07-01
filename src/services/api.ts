@@ -244,6 +244,7 @@ export const anprDashboardApi = {
 export const anprRecordsApi = {
   list: (params?: string) => api.get<PaginatedResponse<AnprRecord>>(`/anpr-records?${params || ""}`),
   update: (id: string, data: Record<string, unknown>) => api.patch<AnprRecord>(`/anpr-records/${id}`, data),
+  delete: (id: string) => api.delete(`/anpr-records/${id}`),
   searchPlates: (q: string) => api.get<{ plates: string[] }>(`/anpr-records/search-plates?q=${encodeURIComponent(q)}`),
   exportCsvUrl: (params?: string) => `/anpr-records/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/anpr-records/export-excel?${params || ""}`,

@@ -73,7 +73,9 @@ const PAGE_SIZE = 20;
 
 export default function AnprRecords() {
   const { areaId, locationId } = useFilter();
-  const showEdit = new URLSearchParams(window.location.search).has("edit");
+  const _urlParams = new URLSearchParams(window.location.search);
+  const showEdit = _urlParams.has("edit");
+  const showDelete = _urlParams.has("delete");
   const [records, setRecords] = useState<AnprRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -105,6 +107,17 @@ export default function AnprRecords() {
       showSuccess(`Updated ${field.replace("_", " ")}`);
     } catch (err: any) {
       showError(err?.response?.data?.detail || "Update failed");
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await anprRecordsApi.delete(id);
+      setRecords((prev) => prev.filter((r) => r.id !== id));
+      setTotal((t) => t - 1);
+      showSuccess("Record deleted");
+    } catch (err: any) {
+      showError(err?.response?.data?.detail || "Delete failed");
     }
   }
 
@@ -287,6 +300,7 @@ export default function AnprRecords() {
                 <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Gemini</th>
                 <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Paddle</th>
                 <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
+                {showDelete && <th className="px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-10"></th>}
               </tr>
             </thead>
             <tbody>
@@ -423,6 +437,13 @@ export default function AnprRecords() {
                   <td className="px-4 py-3">
                     <span className="text-[12px] text-slate-600">{r.location_name || "—"}</span>
                   </td>
+                  {showDelete && (
+                    <td className="px-2 py-3 text-center">
+                      <button onClick={() => handleDelete(r.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
