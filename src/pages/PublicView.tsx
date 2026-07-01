@@ -21,7 +21,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+  const d = new Date(iso);
+  // Round to nearest 5 minutes
+  const min = d.getMinutes();
+  const rounded = Math.round(min / 5) * 5;
+  if (rounded === 60) { d.setHours(d.getHours() + 1); d.setMinutes(0); }
+  else { d.setMinutes(rounded); }
+  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 function hasField(vc: ViewConfig | null, page: string, field: string): boolean {
@@ -436,6 +442,7 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
 /* ─── ANPR History Tab (same UI as AnprHistory page) ─── */
 function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: ViewConfig | null }) {
   const [sessions, setSessions] = useState<AnprSession[]>([]);
+  const [summary, setSummary] = useState<any>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -455,10 +462,14 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
         p.set("end_date", end);
       }
       if (plateSearch) p.set("number_plate", plateSearch);
-      const { data } = await publicViewApi.anprSessions(token, p.toString());
-      setSessions(data.items || []);
-      setTotal(data.total || 0);
-      setTotalPages(data.total_pages || 0);
+      const [sessRes, dashRes] = await Promise.all([
+        publicViewApi.anprSessions(token, p.toString()),
+        publicViewApi.anprDashboard(token),
+      ]);
+      setSessions(sessRes.data.items || []);
+      setTotal(sessRes.data.total || 0);
+      setTotalPages(sessRes.data.total_pages || 0);
+      setSummary(dashRes.data?.summary || null);
     } catch { /* */ }
     setLoading(false);
   }, [token, page, plateSearch]);
@@ -469,6 +480,56 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
   return (
     <div className="px-4 sm:px-6 py-4">
       <div className="max-w-7xl mx-auto space-y-4">
+        {/* ANPR Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[13px] font-bold text-slate-800 mb-2">Cars</p>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                  <p className="text-[10px] font-semibold text-slate-400 mb-1">Total cars</p>
+                  <p className="text-[22px] font-bold text-slate-700">{summary.car_total}</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+                  <p className="text-[10px] font-semibold text-blue-500 mb-1">In</p>
+                  <p className="text-[22px] font-bold text-blue-600">{summary.car_occupied}</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                  <p className="text-[10px] font-semibold text-amber-500 mb-1">Out</p>
+                  <p className="text-[22px] font-bold text-amber-600">{Math.max(0, summary.car_total - summary.car_occupied - summary.car_available)}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
+                  <p className="text-[10px] font-semibold text-emerald-500 mb-1">Available</p>
+                  <p className="text-[22px] font-bold text-emerald-600">{summary.car_available}</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-slate-800 mb-2">Two Wheeler</p>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                  <p className="text-[10px] font-semibold text-slate-400 mb-1">Total bikes</p>
+                  <p className="text-[22px] font-bold text-slate-700">{summary.two_wheeler_total}</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+                  <p className="text-[10px] font-semibold text-blue-500 mb-1">In</p>
+                  <p className="text-[22px] font-bold text-blue-600">{summary.two_wheeler_occupied}</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                  <p className="text-[10px] font-semibold text-amber-500 mb-1">Out</p>
+                  <p className="text-[22px] font-bold text-amber-600">{Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available)}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
+                  <p className="text-[10px] font-semibold text-emerald-500 mb-1">Available</p>
+                  <p className="text-[22px] font-bold text-emerald-600">{summary.two_wheeler_available}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search + Session records */}
+        <p className="text-[14px] font-bold text-slate-700">Session records ({total})</p>
         <div className="relative max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="Search number plate..." value={plateSearch} onChange={(e) => setPlateSearch(e.target.value.toUpperCase())} className="w-full pl-9 pr-3 h-9 text-[12px] bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 card-shadow" />
