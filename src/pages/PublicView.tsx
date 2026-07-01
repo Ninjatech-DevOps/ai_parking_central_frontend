@@ -289,32 +289,59 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
   return (
     <div className="px-4 sm:px-6 py-4">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Location name in header */}
-        {summary?.location_name && summary.location_name !== "All locations" && (
-          <div className="flex items-center gap-2 mb-1">
-            <MapPin size={14} className="text-teal-500" />
-            <span className="text-[15px] font-bold text-slate-800">{summary.location_name}</span>
-            {summary.updated_at && <span className="text-[11px] text-slate-400 ml-2">Updated {summary.updated_at}</span>}
-          </div>
-        )}
-        {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              { label: "Car Occupied", value: summary.car_occupied, icon: Car, bg: "bg-red-50", text: "text-red-500" },
-              { label: "Car Available", value: summary.car_available, icon: Car, bg: "bg-emerald-50", text: "text-emerald-600" },
-              { label: "Car Total", value: summary.car_total, icon: Car, bg: "bg-blue-50", text: "text-blue-600" },
-              { label: "2W Occupied", value: summary.two_wheeler_occupied, icon: Bike, bg: "bg-red-50", text: "text-red-500" },
-              { label: "2W Available", value: summary.two_wheeler_available, icon: Bike, bg: "bg-emerald-50", text: "text-emerald-600" },
-              { label: "2W Total", value: summary.two_wheeler_total, icon: Bike, bg: "bg-indigo-50", text: "text-indigo-600" },
-            ].map(({ label, value, icon: Icon, bg, text }) => (
-              <div key={label} className="bg-white rounded-2xl card-shadow p-4 flex flex-col items-center text-center">
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-2`}><Icon size={18} className={text} /></div>
-                <p className={`text-[24px] font-extrabold leading-none ${text}`}>{value}</p>
-                <p className="text-[10px] text-slate-400 mt-1.5 uppercase tracking-wider font-bold">{label}</p>
+        {/* Header: title + location + updated badge */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-900">Parking Occupancy Report</h1>
+            {summary?.location_name && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-2 h-2 rounded-full bg-teal-500" />
+                <span className="text-[13px] text-slate-500">{summary.location_name}</span>
               </div>
-            ))}
+            )}
           </div>
-        )}
+          {summary?.updated_at && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Updated {summary.updated_at}
+            </span>
+          )}
+        </div>
+
+        {/* Cars + Bikes summary cards (PDF style) */}
+        {summary && (<>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Total cars", value: summary.car_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Occupied", value: summary.car_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
+                { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Bikes</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
+                { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="text-[14px] font-bold text-slate-700">Occupancy records ({total})</p>
+        </>)}
         <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
           {loading && <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center"><Loader2 size={24} className="animate-spin text-teal-500" /></div>}
           <div className="overflow-x-auto">
@@ -480,55 +507,54 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
   return (
     <div className="px-4 sm:px-6 py-4">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* ANPR Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-[13px] font-bold text-slate-800 mb-2">Cars</p>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                  <p className="text-[10px] font-semibold text-slate-400 mb-1">Total cars</p>
-                  <p className="text-[22px] font-bold text-slate-700">{summary.car_total}</p>
+        {/* Header: title + updated badge */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-900">ANPR Sessions Report</h1>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Updated {new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
+          </span>
+        </div>
+
+        {/* Cars + Two Wheeler summary (PDF style) */}
+        {summary && (<>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "Total cars", value: summary.car_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "In", value: summary.car_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: Math.max(0, summary.car_total - summary.car_occupied - summary.car_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                  <p className="text-[10px] font-semibold text-blue-500 mb-1">In</p>
-                  <p className="text-[22px] font-bold text-blue-600">{summary.car_occupied}</p>
-                </div>
-                <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                  <p className="text-[10px] font-semibold text-amber-500 mb-1">Out</p>
-                  <p className="text-[22px] font-bold text-amber-600">{Math.max(0, summary.car_total - summary.car_occupied - summary.car_available)}</p>
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-                  <p className="text-[10px] font-semibold text-emerald-500 mb-1">Available</p>
-                  <p className="text-[22px] font-bold text-emerald-600">{summary.car_available}</p>
-                </div>
-              </div>
-            </div>
-            <div>
-              <p className="text-[13px] font-bold text-slate-800 mb-2">Two Wheeler</p>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                  <p className="text-[10px] font-semibold text-slate-400 mb-1">Total bikes</p>
-                  <p className="text-[22px] font-bold text-slate-700">{summary.two_wheeler_total}</p>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                  <p className="text-[10px] font-semibold text-blue-500 mb-1">In</p>
-                  <p className="text-[22px] font-bold text-blue-600">{summary.two_wheeler_occupied}</p>
-                </div>
-                <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                  <p className="text-[10px] font-semibold text-amber-500 mb-1">Out</p>
-                  <p className="text-[22px] font-bold text-amber-600">{Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available)}</p>
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-                  <p className="text-[10px] font-semibold text-emerald-500 mb-1">Available</p>
-                  <p className="text-[22px] font-bold text-emerald-600">{summary.two_wheeler_available}</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-        )}
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Two Wheeler</p>
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "Total bikes", value: summary.two_wheeler_total, border: "border-slate-200", text: "text-slate-800" },
+                { label: "In", value: summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg || "bg-white"} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>)}
 
-        {/* Search + Session records */}
+        {/* Session records */}
         <p className="text-[14px] font-bold text-slate-700">Session records ({total})</p>
         <div className="relative max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
