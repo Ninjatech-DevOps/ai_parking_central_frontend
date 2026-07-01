@@ -464,7 +464,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
       if (plateSearch) p.set("number_plate", plateSearch);
       const [sessRes, dashRes] = await Promise.all([
         publicViewApi.anprSessions(token, p.toString()),
-        publicViewApi.anprDashboard(token),
+        publicViewApi.anprDashboard(token).catch(() => ({ data: null })),
       ]);
       setSessions(sessRes.data.items || []);
       setTotal(sessRes.data.total || 0);
