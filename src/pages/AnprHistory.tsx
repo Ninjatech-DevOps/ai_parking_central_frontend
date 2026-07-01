@@ -59,6 +59,15 @@ function getPresetDates(key: string) {
   }
 }
 
+/** Convert UTC ISO string to local datetime-local input value (YYYY-MM-DDTHH:MM) */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -81,7 +90,9 @@ export default function AnprHistory() {
   const reqRef = useRef(0);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
-  const showDelete = new URLSearchParams(window.location.search).has("delete");
+  const _urlParams = new URLSearchParams(window.location.search);
+  const showDelete = _urlParams.has("delete");
+  const showEdit = _urlParams.has("edit");
 
   // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -101,11 +112,11 @@ export default function AnprHistory() {
   // Image preview
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
-  // Inline edit
+  // Inline edit — use full response so duration_display recalculates on time changes
   async function handleInlineUpdate(id: string, field: string, value: string) {
     try {
-      await anprSessionsApi.update(id, { [field]: value });
-      setSessions((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
+      const { data } = await anprSessionsApi.update(id, { [field]: value });
+      setSessions((prev) => prev.map((s) => s.id === id ? { ...s, ...data } : s));
       showSuccess(`Updated ${field.replace("_", " ")}`);
     } catch (err: any) {
       showError(err?.response?.data?.detail || "Update failed");
@@ -341,62 +352,89 @@ export default function AnprHistory() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <input
-                      defaultValue={s.number_plate || ""}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim().toUpperCase();
-                        if (v && v !== s.number_plate) handleInlineUpdate(s.id, "number_plate", v);
-                        else e.target.value = s.number_plate || "";
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`text-[14px] font-bold font-mono tracking-wide bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-32 ${s.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
-                    />
+                    {showEdit ? (
+                      <input
+                        defaultValue={s.number_plate || ""}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim().toUpperCase();
+                          if (v && v !== s.number_plate) handleInlineUpdate(s.id, "number_plate", v);
+                          else e.target.value = s.number_plate || "";
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        className={`text-[14px] font-bold font-mono tracking-wide bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-32 ${s.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
+                      />
+                    ) : (
+                      <span className={`text-[14px] font-bold font-mono tracking-wide ${s.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}>{s.number_plate}</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <select
-                      value={s.vehicle_type}
-                      onChange={(e) => handleInlineUpdate(s.id, "vehicle_type", e.target.value)}
-                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
-                        s.vehicle_type === "CAR" ? "text-blue-700 bg-blue-50" : "text-indigo-700 bg-indigo-50"
-                      }`}
-                    >
-                      <option value="CAR">Car</option>
-                      <option value="TWO_WHEELER">2W</option>
-                    </select>
+                    {showEdit ? (
+                      <select
+                        value={s.vehicle_type}
+                        onChange={(e) => handleInlineUpdate(s.id, "vehicle_type", e.target.value)}
+                        className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                          s.vehicle_type === "CAR" ? "text-blue-700 bg-blue-50" : "text-indigo-700 bg-indigo-50"
+                        }`}
+                      >
+                        <option value="CAR">Car</option>
+                        <option value="TWO_WHEELER">2W</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${s.vehicle_type === "CAR" ? "text-blue-700 bg-blue-50" : "text-indigo-700 bg-indigo-50"}`}>
+                        {s.vehicle_type === "CAR" ? <Car size={11} /> : <Bike size={11} />}
+                        {s.vehicle_type === "CAR" ? "Car" : "2W"}
+                      </span>
+                    )}
                   </td>
-                  {/* Entry Time — editable */}
+                  {/* Entry Time */}
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <ArrowDownToLine size={12} className="text-blue-400" />
-                      <input
-                        type="datetime-local"
-                        defaultValue={s.entry_time?.slice(0, 16)}
-                        onBlur={(e) => {
-                          const v = e.target.value;
-                          if (v && new Date(v).toISOString() !== s.entry_time) {
-                            handleInlineUpdate(s.id, "entry_time", new Date(v).toISOString());
-                          }
-                        }}
-                        className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
-                      />
+                      {showEdit ? (
+                        <input
+                          type="datetime-local"
+                          defaultValue={toLocalInput(s.entry_time)}
+                          onBlur={(e) => {
+                            const v = e.target.value;
+                            if (v && new Date(v).toISOString() !== s.entry_time) {
+                              handleInlineUpdate(s.id, "entry_time", new Date(v).toISOString());
+                            }
+                          }}
+                          className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                        />
+                      ) : (
+                        <div>
+                          <p className="text-[13px] font-semibold text-slate-700">{formatDate(s.entry_time)}</p>
+                          <p className="text-[12px] text-slate-500 font-medium">{formatTime(s.entry_time)}</p>
+                        </div>
+                      )}
                     </div>
                   </td>
-                  {/* Exit Time — editable */}
+                  {/* Exit Time */}
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <ArrowUpFromLine size={12} className={s.exit_time ? "text-red-400" : "text-slate-300"} />
-                      <input
-                        type="datetime-local"
-                        defaultValue={s.exit_time?.slice(0, 16) || ""}
-                        onBlur={(e) => {
-                          const v = e.target.value;
-                          if (v) {
-                            handleInlineUpdate(s.id, "exit_time", new Date(v).toISOString());
-                          }
-                        }}
-                        placeholder="—"
-                        className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
-                      />
+                      {showEdit ? (
+                        <input
+                          type="datetime-local"
+                          defaultValue={toLocalInput(s.exit_time)}
+                          onBlur={(e) => {
+                            const v = e.target.value;
+                            if (v) {
+                              handleInlineUpdate(s.id, "exit_time", new Date(v).toISOString());
+                            }
+                          }}
+                          placeholder="—"
+                          className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                        />
+                      ) : s.exit_time ? (
+                        <div>
+                          <p className="text-[13px] font-semibold text-slate-700">{formatDate(s.exit_time)}</p>
+                          <p className="text-[12px] text-slate-500 font-medium">{formatTime(s.exit_time)}</p>
+                        </div>
+                      ) : (
+                        <span className="text-[12px] text-slate-300">—</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-3 text-center">

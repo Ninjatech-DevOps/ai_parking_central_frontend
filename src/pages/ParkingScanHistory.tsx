@@ -80,6 +80,14 @@ function getPresetDates(key: string) {
   }
 }
 
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -172,7 +180,9 @@ export default function ParkingScanHistory() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [intervalMin, setIntervalMin] = useState(5); // default 5 min
-  const showDelete = new URLSearchParams(window.location.search).has("delete");
+  const _urlParams = new URLSearchParams(window.location.search);
+  const showDelete = _urlParams.has("delete");
+  const showEdit = _urlParams.has("edit");
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -407,19 +417,30 @@ export default function ParkingScanHistory() {
                 </tr>
               ) : visibleScans.map((s, idx) => (
                 <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
-                  <td className="px-6 py-3" colSpan={2}>
-                    <input
-                      type="datetime-local"
-                      defaultValue={s.recorded_at?.slice(0, 16)}
-                      onBlur={async (e) => {
-                        const v = e.target.value;
-                        if (v && new Date(v).toISOString() !== s.recorded_at) {
-                          await handleCellSave(s.id, "recorded_at", new Date(v).toISOString());
-                        }
-                      }}
-                      className="text-[12px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-40"
-                    />
-                  </td>
+                  {showEdit ? (
+                    <td className="px-6 py-3" colSpan={2}>
+                      <input
+                        type="datetime-local"
+                        defaultValue={toLocalInput(s.recorded_at)}
+                        onBlur={async (e) => {
+                          const v = e.target.value;
+                          if (v && new Date(v).toISOString() !== s.recorded_at) {
+                            await handleCellSave(s.id, "recorded_at", new Date(v).toISOString());
+                          }
+                        }}
+                        className="text-[12px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-40"
+                      />
+                    </td>
+                  ) : (
+                    <>
+                      <td className="px-6 py-3">
+                        <span className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-[12px] text-slate-500">{formatTime(s.recorded_at)}</span>
+                      </td>
+                    </>
+                  )}
                   <td className="px-3 py-3">
                     {s.image_url ? (
                       <button onClick={() => setPreviewImg(s.image_url)} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors">
@@ -438,22 +459,22 @@ export default function ParkingScanHistory() {
                     <span className="text-[11px] font-mono text-slate-500">{s.device_name || "—"}</span>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.car_occupied} scanId={s.id} field="car_occupied" color={s.car_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.car_occupied} scanId={s.id} field="car_occupied" color={s.car_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} /> : <span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span>}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.car_available} scanId={s.id} field="car_available" color="text-emerald-600" onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.car_available} scanId={s.id} field="car_available" color="text-emerald-600" onSave={handleCellSave} /> : <span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span>}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.car_total} scanId={s.id} field="car_total" color="text-slate-800" onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.car_total} scanId={s.id} field="car_total" color="text-slate-800" onSave={handleCellSave} /> : <span className="text-[16px] font-bold text-slate-800">{s.car_total}</span>}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.two_wheeler_occupied} scanId={s.id} field="two_wheeler_occupied" color={s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.two_wheeler_occupied} scanId={s.id} field="two_wheeler_occupied" color={s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} /> : <span className={`text-[16px] font-bold ${s.two_wheeler_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.two_wheeler_occupied}</span>}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.two_wheeler_available} scanId={s.id} field="two_wheeler_available" color="text-emerald-600" onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.two_wheeler_available} scanId={s.id} field="two_wheeler_available" color="text-emerald-600" onSave={handleCellSave} /> : <span className="text-[16px] font-bold text-emerald-600">{s.two_wheeler_available}</span>}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <EditableCell value={s.two_wheeler_total} scanId={s.id} field="two_wheeler_total" color="text-slate-800" onSave={handleCellSave} />
+                    {showEdit ? <EditableCell value={s.two_wheeler_total} scanId={s.id} field="two_wheeler_total" color="text-slate-800" onSave={handleCellSave} /> : <span className="text-[16px] font-bold text-slate-800">{s.two_wheeler_total}</span>}
                   </td>
                   {showDelete && (
                     <td className="px-2 py-3 text-center">

@@ -52,6 +52,14 @@ function getPresetDates(key: string) {
   }
 }
 
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -65,6 +73,7 @@ const PAGE_SIZE = 20;
 
 export default function AnprRecords() {
   const { areaId, locationId } = useFilter();
+  const showEdit = new URLSearchParams(window.location.search).has("edit");
   const [records, setRecords] = useState<AnprRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -308,61 +317,86 @@ export default function AnprRecords() {
                     )}
                   </td>
 
-                  {/* Number Plate — editable */}
+                  {/* Number Plate */}
                   <td className="px-4 py-3">
-                    <input
-                      defaultValue={r.number_plate || ""}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim().toUpperCase();
-                        if (v && v !== r.number_plate) handleInlineUpdate(r.id, "number_plate", v);
-                        else e.target.value = r.number_plate || "";
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`text-[13px] font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-28 ${r.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
-                    />
+                    {showEdit ? (
+                      <input
+                        defaultValue={r.number_plate || ""}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim().toUpperCase();
+                          if (v && v !== r.number_plate) handleInlineUpdate(r.id, "number_plate", v);
+                          else e.target.value = r.number_plate || "";
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        className={`text-[13px] font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-28 ${r.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}
+                      />
+                    ) : (
+                      <span className={`text-[13px] font-bold ${r.number_plate === "N/A" ? "text-slate-400" : "text-teal-700"}`}>{r.number_plate || "N/A"}</span>
+                    )}
                   </td>
 
-                  {/* Vehicle Type — editable */}
+                  {/* Vehicle Type */}
                   <td className="px-3 py-3 text-center">
-                    <select
-                      value={r.vehicle_type}
-                      onChange={(e) => handleInlineUpdate(r.id, "vehicle_type", e.target.value)}
-                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
-                        r.vehicle_type === "CAR" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"
-                      }`}
-                    >
-                      <option value="CAR">Car</option>
-                      <option value="TWO_WHEELER">2W</option>
-                    </select>
+                    {showEdit ? (
+                      <select
+                        value={r.vehicle_type}
+                        onChange={(e) => handleInlineUpdate(r.id, "vehicle_type", e.target.value)}
+                        className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                          r.vehicle_type === "CAR" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"
+                        }`}
+                      >
+                        <option value="CAR">Car</option>
+                        <option value="TWO_WHEELER">2W</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2 py-1 ${r.vehicle_type === "CAR" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"}`}>
+                        {r.vehicle_type === "CAR" ? <Car size={12} /> : <Bike size={12} />}
+                        {r.vehicle_type === "CAR" ? "Car" : "2W"}
+                      </span>
+                    )}
                   </td>
 
-                  {/* Direction — editable */}
+                  {/* Direction */}
                   <td className="px-3 py-3 text-center">
-                    <select
-                      value={r.direction}
-                      onChange={(e) => handleInlineUpdate(r.id, "direction", e.target.value)}
-                      className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
-                        r.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
-                      }`}
-                    >
-                      <option value="IN">IN</option>
-                      <option value="OUT">OUT</option>
-                    </select>
+                    {showEdit ? (
+                      <select
+                        value={r.direction}
+                        onChange={(e) => handleInlineUpdate(r.id, "direction", e.target.value)}
+                        className={`text-[11px] font-bold rounded-lg px-2 py-1 border-0 cursor-pointer appearance-none text-center ${
+                          r.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
+                        }`}
+                      >
+                        <option value="IN">IN</option>
+                        <option value="OUT">OUT</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold rounded-lg px-2.5 py-1 ${r.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"}`}>
+                        {r.direction === "IN" ? <ArrowDownToLine size={11} /> : <ArrowUpFromLine size={11} />}
+                        {r.direction}
+                      </span>
+                    )}
                   </td>
 
-                  {/* Date & Time — editable */}
+                  {/* Date & Time */}
                   <td className="px-4 py-3">
-                    <input
-                      type="datetime-local"
-                      defaultValue={r.recorded_at?.slice(0, 16)}
-                      onBlur={(e) => {
-                        const v = e.target.value;
-                        if (v && new Date(v).toISOString() !== r.recorded_at) {
-                          handleInlineUpdate(r.id, "recorded_at", new Date(v).toISOString());
-                        }
-                      }}
-                      className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
-                    />
+                    {showEdit ? (
+                      <input
+                        type="datetime-local"
+                        defaultValue={toLocalInput(r.recorded_at)}
+                        onBlur={(e) => {
+                          const v = e.target.value;
+                          if (v && new Date(v).toISOString() !== r.recorded_at) {
+                            handleInlineUpdate(r.id, "recorded_at", new Date(v).toISOString());
+                          }
+                        }}
+                        className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                      />
+                    ) : (
+                      <div>
+                        <p className="text-[12px] font-semibold text-slate-700">{formatDate(r.recorded_at)}</p>
+                        <p className="text-[11px] text-slate-400">{formatTime(r.recorded_at)}</p>
+                      </div>
+                    )}
                   </td>
 
                   {/* Gemini Result */}
