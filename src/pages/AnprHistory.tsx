@@ -112,6 +112,16 @@ export default function AnprHistory() {
   // Image preview
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
+  // Close image preview on Escape key
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewImg(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImg]);
+
   // Inline edit — use full response so duration_display recalculates on time changes
   async function handleInlineUpdate(id: string, field: string, value: string) {
     try {
