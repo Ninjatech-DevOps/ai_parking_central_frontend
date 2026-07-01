@@ -191,6 +191,16 @@ export default function ParkingScanHistory() {
   const [customTo, setCustomTo] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
+  // Close image preview on Escape key
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewImg(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImg]);
+
   const [draftPreset, setDraftPreset] = useState("today");
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
