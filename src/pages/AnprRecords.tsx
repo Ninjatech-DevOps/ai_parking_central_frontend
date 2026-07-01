@@ -350,10 +350,19 @@ export default function AnprRecords() {
                     </select>
                   </td>
 
-                  {/* Date & Time */}
+                  {/* Date & Time — editable */}
                   <td className="px-4 py-3">
-                    <p className="text-[12px] font-semibold text-slate-700">{formatDate(r.recorded_at)}</p>
-                    <p className="text-[11px] text-slate-400">{formatTime(r.recorded_at)}</p>
+                    <input
+                      type="datetime-local"
+                      defaultValue={r.recorded_at?.slice(0, 16)}
+                      onBlur={(e) => {
+                        const v = e.target.value;
+                        if (v && new Date(v).toISOString() !== r.recorded_at) {
+                          handleInlineUpdate(r.id, "recorded_at", new Date(v).toISOString());
+                        }
+                      }}
+                      className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                    />
                   </td>
 
                   {/* Gemini Result */}

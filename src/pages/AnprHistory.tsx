@@ -364,27 +364,40 @@ export default function AnprHistory() {
                       <option value="TWO_WHEELER">2W</option>
                     </select>
                   </td>
+                  {/* Entry Time — editable */}
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <ArrowDownToLine size={12} className="text-blue-400" />
-                      <div>
-                        <p className="text-[13px] font-semibold text-slate-700">{formatDate(s.entry_time)}</p>
-                        <p className="text-[12px] text-slate-500 font-medium">{formatTime(s.entry_time)}</p>
-                      </div>
+                      <input
+                        type="datetime-local"
+                        defaultValue={s.entry_time?.slice(0, 16)}
+                        onBlur={(e) => {
+                          const v = e.target.value;
+                          if (v && new Date(v).toISOString() !== s.entry_time) {
+                            handleInlineUpdate(s.id, "entry_time", new Date(v).toISOString());
+                          }
+                        }}
+                        className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                      />
                     </div>
                   </td>
+                  {/* Exit Time — editable */}
                   <td className="px-4 py-3 text-center">
-                    {s.exit_time ? (
-                      <div className="flex items-center justify-center gap-1.5">
-                        <ArrowUpFromLine size={12} className="text-red-400" />
-                        <div>
-                          <p className="text-[13px] font-semibold text-slate-700">{formatDate(s.exit_time)}</p>
-                          <p className="text-[12px] text-slate-500 font-medium">{formatTime(s.exit_time)}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-[12px] text-slate-300">—</span>
-                    )}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <ArrowUpFromLine size={12} className={s.exit_time ? "text-red-400" : "text-slate-300"} />
+                      <input
+                        type="datetime-local"
+                        defaultValue={s.exit_time?.slice(0, 16) || ""}
+                        onBlur={(e) => {
+                          const v = e.target.value;
+                          if (v) {
+                            handleInlineUpdate(s.id, "exit_time", new Date(v).toISOString());
+                          }
+                        }}
+                        placeholder="—"
+                        className="text-[11px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-36"
+                      />
+                    </div>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <span className={`text-[12px] font-semibold ${s.duration_display ? "text-slate-700" : "text-teal-600"}`}>

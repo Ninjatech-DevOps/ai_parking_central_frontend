@@ -250,7 +250,7 @@ export default function ParkingScanHistory() {
   const activeFilterCount = [customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
 
   // Inline-edit a scan's count; persist to backend and update the row in place.
-  async function handleCellSave(id: string, field: string, val: number) {
+  async function handleCellSave(id: string, field: string, val: number | string) {
     const { data } = await parkingHistoryApi.update(id, { [field]: val });
     setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
   }
@@ -407,11 +407,18 @@ export default function ParkingScanHistory() {
                 </tr>
               ) : visibleScans.map((s, idx) => (
                 <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
-                  <td className="px-6 py-3">
-                    <span className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</span>
-                  </td>
-                  <td className="px-3 py-3">
-                    <span className="text-[12px] text-slate-500">{formatTime(s.recorded_at)}</span>
+                  <td className="px-6 py-3" colSpan={2}>
+                    <input
+                      type="datetime-local"
+                      defaultValue={s.recorded_at?.slice(0, 16)}
+                      onBlur={async (e) => {
+                        const v = e.target.value;
+                        if (v && new Date(v).toISOString() !== s.recorded_at) {
+                          await handleCellSave(s.id, "recorded_at", new Date(v).toISOString());
+                        }
+                      }}
+                      className="text-[12px] text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-none w-40"
+                    />
                   </td>
                   <td className="px-3 py-3">
                     {s.image_url ? (
