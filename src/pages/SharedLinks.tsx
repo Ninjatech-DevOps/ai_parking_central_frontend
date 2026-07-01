@@ -151,16 +151,17 @@ export default function SharedLinks() {
     load();
   }, [showForm]);
 
-  // Load locations filtered by area (for LOCATION and CAMERA scopes)
+  // Load locations: all for LOCATION scope, area-filtered for CAMERA scope
   useEffect(() => {
     if (!showForm || (formScopeType !== "LOCATION" && formScopeType !== "CAMERA")) {
       setLocations([]);
       return;
     }
-    if (!formAreaFilter) { setLocations([]); return; }
+    if (formScopeType === "CAMERA" && !formAreaFilter) { setLocations([]); return; }
     const load = async () => {
       try {
-        const { data } = await locationsApi.list(`area_id=${formAreaFilter}&page_size=500`);
+        const params = formScopeType === "CAMERA" ? `area_id=${formAreaFilter}&page_size=500` : "page_size=500";
+        const { data } = await locationsApi.list(params);
         setLocations(data.items || []);
       } catch { /* ignore */ }
     };
@@ -474,7 +475,7 @@ export default function SharedLinks() {
                 <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Scope Level</Label>
                 <SearchSelect
                   value={formScopeType}
-                  onValueChange={(v) => { setFormScopeType(v); setFormAreaFilter(""); setFormScopeId(""); setFormCameraIds([]); }}
+                  onValueChange={(v) => { setFormScopeType(v); setFormAreaFilter(""); setFormScopeId(""); setFormCameraIds([]); setFormLocationIds([]); }}
                   options={SCOPE_OPTIONS}
                   placeholder="Select scope level"
                   className="w-full h-10"
@@ -495,46 +496,45 @@ export default function SharedLinks() {
                 </div>
               )}
 
-              {formScopeType === "LOCATION" && (
-                <>
-                  <div>
-                    <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Filter by Area</Label>
-                    <SearchSelect
-                      value={formAreaFilter}
-                      onValueChange={(v) => { setFormAreaFilter(v); setFormLocationIds([]); }}
-                      options={areas.map((a) => ({ value: a.id, label: a.name }))}
-                      placeholder="Select area first..."
-                      searchPlaceholder="Search area..."
-                      className="w-full h-10"
-                    />
+              {formScopeType === "LOCATION" && locations.length > 0 && (
+                <div>
+                  <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Select Location(s)</Label>
+                  <div className="space-y-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 p-3">
+                    {/* Group locations by area */}
+                    {(() => {
+                      const grouped: Record<string, typeof locations> = {};
+                      for (const loc of locations) {
+                        const areaName = areas.find((a) => a.id === loc.area_id)?.name || "Other";
+                        if (!grouped[areaName]) grouped[areaName] = [];
+                        grouped[areaName].push(loc);
+                      }
+                      return Object.entries(grouped).map(([areaName, locs]) => (
+                        <div key={areaName}>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pt-2 pb-1">{areaName}</p>
+                          {locs.map((loc) => (
+                            <label key={loc.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 rounded-lg p-1.5">
+                              <input
+                                type="checkbox"
+                                checked={formLocationIds.includes(loc.id)}
+                                onChange={() => {
+                                  setFormLocationIds((prev) =>
+                                    prev.includes(loc.id) ? prev.filter((id) => id !== loc.id) : [...prev, loc.id]
+                                  );
+                                }}
+                                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                              />
+                              <span className="text-[13px] text-slate-700">{loc.name}</span>
+                              <span className={`ml-auto text-[10px] font-bold uppercase rounded-lg px-2 py-0.5 ${loc.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{loc.is_active ? "Active" : "Inactive"}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ));
+                    })()}
                   </div>
-                  {formAreaFilter && locations.length > 0 && (
-                    <div>
-                      <Label className="text-[12px] font-semibold text-slate-600 mb-1.5">Select Location(s)</Label>
-                      <div className="space-y-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-3">
-                        {locations.map((loc) => (
-                          <label key={loc.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 rounded-lg p-1.5 -m-1.5">
-                            <input
-                              type="checkbox"
-                              checked={formLocationIds.includes(loc.id)}
-                              onChange={() => {
-                                setFormLocationIds((prev) =>
-                                  prev.includes(loc.id) ? prev.filter((id) => id !== loc.id) : [...prev, loc.id]
-                                );
-                              }}
-                              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                            />
-                            <span className="text-[13px] text-slate-700">{loc.name}</span>
-                            <span className={`ml-auto text-[10px] font-bold uppercase rounded-lg px-2 py-0.5 ${loc.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>{loc.is_active ? "Active" : "Inactive"}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {formLocationIds.length > 0 && (
-                        <p className="text-[11px] text-teal-600 font-semibold mt-1.5">{formLocationIds.length} location(s) selected</p>
-                      )}
-                    </div>
+                  {formLocationIds.length > 0 && (
+                    <p className="text-[11px] text-teal-600 font-semibold mt-1.5">{formLocationIds.length} location(s) selected</p>
                   )}
-                </>
+                </div>
               )}
 
               {formScopeType === "CAMERA" && (
