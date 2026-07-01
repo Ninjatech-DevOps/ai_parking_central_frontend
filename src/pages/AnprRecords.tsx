@@ -246,21 +246,10 @@ export default function AnprRecords() {
       {/* Filter Panel */}
       <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={resetFilters}>
         <FilterField label="Quick Date">
-          <div className="flex gap-1">
-            {DATE_PRESETS.map((dp) => (
-              <button
-                key={dp.key}
-                onClick={() => { setDraftPreset(dp.key); setDraftFrom(""); setDraftTo(""); }}
-                className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
-                  draftPreset === dp.key && !draftFrom && !draftTo
-                    ? "bg-teal-600 text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                {dp.label}
-              </button>
-            ))}
-          </div>
+          <FilterSelect value={draftFrom || draftTo ? "" : draftPreset} onChange={(v) => { setDraftPreset(v); setDraftFrom(""); setDraftTo(""); }}>
+            <option value="" disabled>Custom range</option>
+            {DATE_PRESETS.map((dp) => <option key={dp.key} value={dp.key}>{dp.label}</option>)}
+          </FilterSelect>
         </FilterField>
         <FilterField label="Type">
           <FilterSelect value={draftType} onChange={setDraftType}>
