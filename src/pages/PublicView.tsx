@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-  ParkingSquare, AlertTriangle, Car, Bike, Eye, Bug, Search,
+  ParkingSquare, AlertTriangle, Car, Bike, Eye, Bug, Search, MapPin,
   ArrowDownToLine, ArrowUpFromLine, Loader2, Image as ImageIcon, ScanLine, Clock,
 } from "lucide-react";
 import { publicViewApi } from "@/services/api";
