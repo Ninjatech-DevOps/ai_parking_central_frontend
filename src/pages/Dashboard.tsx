@@ -62,7 +62,11 @@ export default function Dashboard() {
       const canvases = await Promise.all(
         locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
       );
-      setCanvasData(canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0));
+      const validCanvases = canvases.filter((c): c is CanvasResponse => c !== null && c.cameras.length > 0);
+      setCanvasData(validCanvases);
+      // Only show locations that have AI Parking canvas data (cameras with slots)
+      const canvasLocationIds = new Set(validCanvases.map((c) => c.location_id));
+      setLocationsList(locationsForCanvas.filter((loc) => canvasLocationIds.has(loc.id)));
     } finally {
       setLoading(false);
     }
