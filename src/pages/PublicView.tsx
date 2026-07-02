@@ -369,6 +369,35 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
               ))}
             </div>
           </div>
+          {/* Overall Occupancy Card */}
+          {(() => {
+            const totalAll = summary.car_total + summary.two_wheeler_total;
+            const occAll = summary.car_occupied + summary.two_wheeler_occupied;
+            const availAll = totalAll - occAll;
+            const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 100;
+            return (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Total Capacity</p>
+                    <p className="text-[28px] font-bold text-slate-800 leading-none">{totalAll}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Occupied</p>
+                    <p className="text-[28px] font-bold text-red-500 leading-none">{occAll}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Available</p>
+                    <p className="text-[28px] font-bold text-emerald-600 leading-none">{availAll}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[36px] font-extrabold text-teal-700 leading-none">{pct}%</p>
+                  <p className="text-[11px] font-semibold text-teal-600 mt-1">Availability</p>
+                </div>
+              </div>
+            );
+          })()}
           <p className="text-[14px] font-bold text-slate-700">Occupancy records ({total})</p>
         </>)}
         <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
