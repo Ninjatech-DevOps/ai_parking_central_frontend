@@ -281,19 +281,31 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
       setTotal(scanRes.data.total || 0);
       setTotalPages(scanRes.data.total_pages || 0);
 
-      // For "today" filter: use the latest scan row as summary so cards
-      // are locked to the 10AM-6PM window (not live after 6PM)
-      if (dateFilter === "today" && items.length > 0 && page === 1) {
-        const latest = items[0]; // first row = most recent scan in range
-        setSummary({
-          ...summaryRes.data,
-          car_occupied: latest.car_occupied,
-          car_available: latest.car_available,
-          car_total: latest.car_total,
-          two_wheeler_occupied: latest.two_wheeler_occupied,
-          two_wheeler_available: latest.two_wheeler_available,
-          two_wheeler_total: latest.two_wheeler_total,
-        });
+      // For "today" filter: lock cards to 10AM-6PM window
+      if (dateFilter === "today") {
+        const s = summaryRes.data;
+        if (items.length > 0 && page === 1) {
+          // Use latest scan in the 10-6 window
+          const latest = items[0];
+          setSummary({
+            ...s,
+            car_occupied: latest.car_occupied,
+            car_available: latest.car_available,
+            car_total: latest.car_total,
+            two_wheeler_occupied: latest.two_wheeler_occupied,
+            two_wheeler_available: latest.two_wheeler_available,
+            two_wheeler_total: latest.two_wheeler_total,
+          });
+        } else {
+          // No scans yet (before 10AM or no data) — show 0 occupied, full available
+          setSummary({
+            ...s,
+            car_occupied: 0,
+            car_available: s.car_total,
+            two_wheeler_occupied: 0,
+            two_wheeler_available: s.two_wheeler_total,
+          });
+        }
       } else {
         setSummary(summaryRes.data);
       }
