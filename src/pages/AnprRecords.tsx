@@ -217,7 +217,7 @@ export default function AnprRecords() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight">ANPR Records</h1>
-            <LiveBadge />
+            {datePreset === "today" && !customFrom && !customTo && <LiveBadge />}
           </div>
           <p className="text-[13px] text-slate-400 mt-0.5">All vehicle detections received from ANPR devices</p>
         </div>
