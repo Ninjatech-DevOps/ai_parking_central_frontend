@@ -373,27 +373,32 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
           {(() => {
             const totalAll = summary.car_total + summary.two_wheeler_total;
             const occAll = summary.car_occupied + summary.two_wheeler_occupied;
-            const availAll = totalAll - occAll;
-            const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 100;
+            const availAll = Math.max(0, totalAll - occAll);
+            const occPct = totalAll > 0 ? Math.round((occAll / totalAll) * 100) : 0;
+            const barW = totalAll > 0 ? (occAll / totalAll) * 100 : 0;
             return (
-              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Total Capacity</p>
-                    <p className="text-[28px] font-bold text-slate-800 leading-none">{totalAll}</p>
+              <div className="rounded-2xl bg-white border border-slate-200 card-shadow overflow-hidden">
+                <div className="grid grid-cols-4 divide-x divide-slate-100">
+                  <div className="p-5 text-center">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Total Capacity</p>
+                    <p className="text-[32px] font-extrabold text-slate-800 leading-none">{totalAll}</p>
                   </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Occupied</p>
-                    <p className="text-[28px] font-bold text-red-500 leading-none">{occAll}</p>
+                  <div className="p-5 text-center bg-red-50/50">
+                    <p className="text-[11px] font-bold text-red-400 uppercase tracking-wider mb-2">Occupied</p>
+                    <p className="text-[32px] font-extrabold text-red-500 leading-none">{occAll}</p>
                   </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Available</p>
-                    <p className="text-[28px] font-bold text-emerald-600 leading-none">{availAll}</p>
+                  <div className="p-5 text-center bg-emerald-50/50">
+                    <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-2">Available</p>
+                    <p className="text-[32px] font-extrabold text-emerald-600 leading-none">{availAll}</p>
+                  </div>
+                  <div className="p-5 text-center bg-teal-50">
+                    <p className="text-[11px] font-bold text-teal-400 uppercase tracking-wider mb-2">Occupancy</p>
+                    <p className="text-[32px] font-extrabold text-teal-700 leading-none">{occPct}%</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[36px] font-extrabold text-teal-700 leading-none">{pct}%</p>
-                  <p className="text-[11px] font-semibold text-teal-600 mt-1">Availability</p>
+                {/* Progress bar */}
+                <div className="h-2 bg-emerald-100">
+                  <div className={`h-full transition-all duration-500 ${occPct >= 90 ? "bg-red-500" : occPct >= 60 ? "bg-amber-400" : "bg-teal-500"}`} style={{ width: `${barW}%` }} />
                 </div>
               </div>
             );
