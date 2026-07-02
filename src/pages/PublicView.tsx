@@ -497,19 +497,50 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
       if (dateFilter === "today") {
-        const { start, end } = getTodayRange();
-        p.set("start_date", start);
-        p.set("end_date", end);
+        // 10 AM – 6 PM only
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
+        p.set("start_date", todayStart.toISOString());
+        p.set("end_date", todayEnd.toISOString());
       }
       if (plateSearch) p.set("number_plate", plateSearch);
-      const [sessRes, dashRes] = await Promise.all([
+
+      // Also fetch ALL sessions (no pagination) to compute In/Out counts for cards
+      const countParams = new URLSearchParams(p);
+      countParams.set("page_size", "10000");
+      countParams.delete("page");
+
+      const [sessRes, allRes, dashRes] = await Promise.all([
         publicViewApi.anprSessions(token, p.toString()),
+        publicViewApi.anprSessions(token, countParams.toString()).catch(() => ({ data: { items: [] } })),
         publicViewApi.anprDashboard(token).catch(() => ({ data: null })),
       ]);
-      setSessions(sessRes.data.items || []);
+      const items = sessRes.data.items || [];
+      const allItems = allRes.data.items || [];
+      setSessions(items);
       setTotal(sessRes.data.total || 0);
       setTotalPages(sessRes.data.total_pages || 0);
-      setSummary(dashRes.data?.summary || null);
+
+      // Compute In/Out from session data for the cards
+      const dash = dashRes.data?.summary;
+      if (dash) {
+        const carIn = allItems.filter((s: any) => s.vehicle_type === "CAR" && s.is_active).length;
+        const carOut = allItems.filter((s: any) => s.vehicle_type === "CAR" && !s.is_active).length;
+        const twIn = allItems.filter((s: any) => s.vehicle_type === "TWO_WHEELER" && s.is_active).length;
+        const twOut = allItems.filter((s: any) => s.vehicle_type === "TWO_WHEELER" && !s.is_active).length;
+        setSummary({
+          ...dash,
+          car_in: carIn,
+          car_out: carOut,
+          car_available: Math.max(0, dash.car_total - (carIn - carOut)),
+          two_wheeler_in: twIn,
+          two_wheeler_out: twOut,
+          two_wheeler_available: Math.max(0, dash.two_wheeler_total - (twIn - twOut)),
+        });
+      } else {
+        setSummary(null);
+      }
     } catch { /* */ }
     setLoading(false);
   }, [token, page, plateSearch]);
@@ -538,8 +569,8 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             <div className="grid grid-cols-4 gap-3">
               {[
                 { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
-                { label: "In", value: summary.car_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
-                { label: "Out", value: Math.max(0, summary.car_total - summary.car_occupied - summary.car_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "In", value: summary.car_in ?? summary.car_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: summary.car_out ?? 0, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
                 { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
@@ -554,8 +585,8 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             <div className="grid grid-cols-4 gap-3">
               {[
                 { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
-                { label: "In", value: summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
-                { label: "Out", value: Math.max(0, summary.two_wheeler_total - summary.two_wheeler_occupied - summary.two_wheeler_available), border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "In", value: summary.two_wheeler_in ?? summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: summary.two_wheeler_out ?? 0, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
