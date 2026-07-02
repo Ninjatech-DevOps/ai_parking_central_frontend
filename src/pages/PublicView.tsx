@@ -518,23 +518,29 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
       }
       if (plateSearch) p.set("number_plate", plateSearch);
 
-      // Fetch all sessions in one go (large page) to compute In/Out for cards
-      const allParams = new URLSearchParams(p);
-      allParams.set("page", "1");
-      allParams.set("page_size", "5000");
-
       const [sessRes, dashRes] = await Promise.all([
-        publicViewApi.anprSessions(token, allParams.toString()),
+        publicViewApi.anprSessions(token, p.toString()),
         publicViewApi.anprDashboard(token).catch(() => ({ data: null })),
       ]);
-      const allItems = sessRes.data.items || [];
-      // Paginate locally
-      const startIdx = (page - 1) * pageSize;
-      const pageItems = allItems.slice(startIdx, startIdx + pageSize);
-      const totalCount = sessRes.data.total || allItems.length;
-      setSessions(pageItems);
+      const items = sessRes.data.items || [];
+      const totalCount = sessRes.data.total || 0;
+      setSessions(items);
       setTotal(totalCount);
-      setTotalPages(Math.ceil(totalCount / pageSize));
+      setTotalPages(sessRes.data.total_pages || 0);
+
+      // Fetch remaining pages to compute full In/Out counts for cards
+      let allItems = [...items];
+      const totalPages2 = sessRes.data.total_pages || 1;
+      if (totalPages2 > 1) {
+        const remaining = await Promise.all(
+          Array.from({ length: totalPages2 - 1 }, (_, i) => {
+            const pp = new URLSearchParams(p);
+            pp.set("page", String(i + 2));
+            return publicViewApi.anprSessions(token, pp.toString()).then(r => r.data.items || []).catch(() => []);
+          })
+        );
+        allItems = allItems.concat(...remaining);
+      }
 
       // Compute In/Out from session data within 10-6 window
       const dash = dashRes.data?.summary;
