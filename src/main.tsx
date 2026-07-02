@@ -21,6 +21,7 @@ import AnprHistory from "@/pages/AnprHistory";
 import AnprRecords from "@/pages/AnprRecords";
 import SharedLinks from "@/pages/SharedLinks";
 import OTAUpdates from "@/pages/OTAUpdates";
+import DemoReport from "@/pages/DemoReport";
 import PublicView from "@/pages/PublicView";
 import { Toaster } from "sonner";
 import "./index.css";
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/users" element={<Users />} />
         <Route path="/roles" element={<Roles />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/demo-report" element={<DemoReport />} />
         <Route path="/shared-links" element={<SharedLinks />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

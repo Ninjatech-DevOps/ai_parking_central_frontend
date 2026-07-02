@@ -47,6 +47,7 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/alerts", label: "Alerts", icon: Bell, permissions: ["alerts:view"] },
       { to: "/reports", label: "Reports", icon: FileDown, permissions: ["reports:view"] },
+      { to: "/demo-report", label: "Demo Report", icon: Download, permissions: ["reports:view"] },
     ],
   },
   {
