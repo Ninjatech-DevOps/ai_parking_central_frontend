@@ -518,38 +518,46 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
       }
       if (plateSearch) p.set("number_plate", plateSearch);
 
-      // Also fetch ALL sessions (no pagination) to compute In/Out counts for cards
-      const countParams = new URLSearchParams(p);
-      countParams.set("page_size", "10000");
-      countParams.delete("page");
+      // Fetch all sessions in one go (large page) to compute In/Out for cards
+      const allParams = new URLSearchParams(p);
+      allParams.set("page", "1");
+      allParams.set("page_size", "5000");
 
-      const [sessRes, allRes, dashRes] = await Promise.all([
-        publicViewApi.anprSessions(token, p.toString()),
-        publicViewApi.anprSessions(token, countParams.toString()).catch(() => ({ data: { items: [] } })),
+      const [sessRes, dashRes] = await Promise.all([
+        publicViewApi.anprSessions(token, allParams.toString()),
         publicViewApi.anprDashboard(token).catch(() => ({ data: null })),
       ]);
-      const items = sessRes.data.items || [];
-      const allItems = allRes.data.items || [];
-      setSessions(items);
-      setTotal(sessRes.data.total || 0);
-      setTotalPages(sessRes.data.total_pages || 0);
+      const allItems = sessRes.data.items || [];
+      // Paginate locally
+      const startIdx = (page - 1) * pageSize;
+      const pageItems = allItems.slice(startIdx, startIdx + pageSize);
+      const totalCount = sessRes.data.total || allItems.length;
+      setSessions(pageItems);
+      setTotal(totalCount);
+      setTotalPages(Math.ceil(totalCount / pageSize));
 
-      // Compute In/Out from session data for the cards
+      // Compute In/Out from session data within 10-6 window
       const dash = dashRes.data?.summary;
       if (dash) {
-        const carIn = allItems.filter((s: any) => s.vehicle_type === "CAR" && s.is_active).length;
-        const carOut = allItems.filter((s: any) => s.vehicle_type === "CAR" && !s.is_active).length;
-        const twIn = allItems.filter((s: any) => s.vehicle_type === "TWO_WHEELER" && s.is_active).length;
-        const twOut = allItems.filter((s: any) => s.vehicle_type === "TWO_WHEELER" && !s.is_active).length;
-        setSummary({
-          ...dash,
-          car_in: carIn,
-          car_out: carOut,
-          car_available: Math.max(0, dash.car_total - (carIn - carOut)),
-          two_wheeler_in: twIn,
-          two_wheeler_out: twOut,
-          two_wheeler_available: Math.max(0, dash.two_wheeler_total - (twIn - twOut)),
-        });
+        if (dateFilter === "today" && allItems.length === 0) {
+          setSummary({
+            ...dash,
+            car_in: 0, car_out: 0, car_available: dash.car_total,
+            two_wheeler_in: 0, two_wheeler_out: 0, two_wheeler_available: dash.two_wheeler_total,
+          });
+        } else {
+          const carIn = allItems.filter((s: any) => (s.vehicle_type === "CAR" || s.vehicle_type === "Car") && s.is_active).length;
+          const carOut = allItems.filter((s: any) => (s.vehicle_type === "CAR" || s.vehicle_type === "Car") && !s.is_active).length;
+          const twIn = allItems.filter((s: any) => (s.vehicle_type === "TWO_WHEELER" || s.vehicle_type === "Two Wheeler") && s.is_active).length;
+          const twOut = allItems.filter((s: any) => (s.vehicle_type === "TWO_WHEELER" || s.vehicle_type === "Two Wheeler") && !s.is_active).length;
+          setSummary({
+            ...dash,
+            car_in: carIn, car_out: carOut,
+            car_available: Math.max(0, dash.car_total - (carIn - carOut)),
+            two_wheeler_in: twIn, two_wheeler_out: twOut,
+            two_wheeler_available: Math.max(0, dash.two_wheeler_total - (twIn - twOut)),
+          });
+        }
       } else {
         setSummary(null);
       }
