@@ -440,6 +440,12 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setPreviewImg(null); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImg]);
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "parking_history", field);
 
@@ -634,6 +640,12 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
   const [loading, setLoading] = useState(true);
   const [plateSearch, setPlateSearch] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setPreviewImg(null); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImg]);
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "anpr_records", field);
   const dateFilter = (viewConfig as any)?.date_filter || "today";
@@ -776,6 +788,12 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
   const [loading, setLoading] = useState(true);
   const [plateSearch, setPlateSearch] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setPreviewImg(null); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewImg]);
   const pageSize = 20;
   const f = (field: string) => hasField(viewConfig, "anpr_history", field);
   const dateFilter = (viewConfig as any)?.date_filter || "today";
