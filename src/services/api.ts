@@ -235,8 +235,8 @@ export const publicViewApi = {
     api.get<PaginatedResponse<AnprRecord>>(`/public/view/${token}/anpr-records?${params || ""}`),
   anprSessions: (token: string, params?: string) =>
     api.get<PaginatedResponse<AnprSession>>(`/public/view/${token}/anpr-sessions?${params || ""}`),
-  anprDashboard: (token: string) =>
-    api.get<any>(`/public/view/${token}/anpr-dashboard`),
+  anprDashboard: (token: string, params?: string) =>
+    api.get<any>(`/public/view/${token}/anpr-dashboard?${params || ""}`),
 };
 
 // ─── Notification Preferences ───

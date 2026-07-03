@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { publicViewApi } from "@/services/api";
 import Pagination from "@/components/Pagination";
-import type { PublicViewResponse, ViewConfig, ParkingScan, AnprRecord, AnprSession, OccupancySummary } from "@/types/api";
+import type { PublicViewResponse, ViewConfig, ParkingScan, AnprRecord, AnprSession, OccupancySummary, AnprReport } from "@/types/api";
 import { Skel } from "@/components/Skeleton";
 
 const PAGE_LABELS: Record<string, string> = {
@@ -491,10 +491,67 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
   );
 }
 
+/* ─── ANPR report charts (mirror the PDF) ─── */
+function InOutChart({ chart }: { chart: AnprReport["analytics"]["chart"] }) {
+  const max = Math.max(1, ...chart.in, ...chart.out);
+  const everyN = Math.ceil((chart.labels.length || 1) / 8);
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[13px] font-bold text-slate-800">Hourly In / Out</h3>
+        <div className="flex items-center gap-3 text-[10px] font-semibold">
+          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-blue-400" /> In</span>
+          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Out</span>
+        </div>
+      </div>
+      {chart.labels.length === 0 ? (
+        <p className="text-[12px] text-slate-400 text-center py-10">No entries in this window</p>
+      ) : (<>
+        <div className="flex items-end gap-[3px] h-[130px]">
+          {chart.labels.map((_, i) => (
+            <div key={i} className="flex-1 flex items-end justify-center gap-[2px] h-full group relative">
+              <div className="w-1/2 bg-blue-400 rounded-t transition-all" style={{ height: `${(chart.in[i] / max) * 100}%`, minHeight: chart.in[i] > 0 ? 2 : 0 }} />
+              <div className="w-1/2 bg-amber-400 rounded-t transition-all" style={{ height: `${(chart.out[i] / max) * 100}%`, minHeight: chart.out[i] > 0 ? 2 : 0 }} />
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">{chart.labels[i]}: In {chart.in[i]} · Out {chart.out[i]}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-[3px] mt-1.5">
+          {chart.labels.map((l, i) => (
+            <div key={i} className="flex-1 text-center text-[7px] text-slate-400 truncate">{i % everyN === 0 ? l : ""}</div>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+function DurationBreakdownChart({ data }: { data: { label: string; count: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const colors = ["bg-emerald-400", "bg-teal-400", "bg-blue-400", "bg-amber-400", "bg-red-400"];
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-5">
+      <h3 className="text-[13px] font-bold text-slate-800 mb-4">Duration Breakdown</h3>
+      <div className="space-y-3">
+        {data.map((d, i) => (
+          <div key={d.label} className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-500 w-[72px] shrink-0 text-right">{d.label}</span>
+            <div className="flex-1 h-6 bg-slate-50 rounded-lg overflow-hidden">
+              <div className={`h-full ${colors[i % colors.length]} rounded-lg flex items-center justify-end pr-2 transition-all`} style={{ width: `${Math.max((d.count / max) * 100, d.count > 0 ? 8 : 0)}%` }}>
+                {d.count > 0 && <span className="text-[10px] font-bold text-white">{d.count}</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── ANPR History Tab (same UI as AnprHistory page) ─── */
 function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: ViewConfig | null }) {
   const [sessions, setSessions] = useState<AnprSession[]>([]);
-  const [summary, setSummary] = useState<any>(null);
+  const [report, setReport] = useState<AnprReport | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -508,65 +565,27 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
   const fetchData = useCallback(async () => {
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      const win = new URLSearchParams(); // date window shared by the table + report
       if (dateFilter === "today") {
         // 10 AM – 6 PM only
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
         const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
-        p.set("start_date", todayStart.toISOString());
-        p.set("end_date", todayEnd.toISOString());
+        win.set("start_date", todayStart.toISOString());
+        win.set("end_date", todayEnd.toISOString());
       }
+      win.forEach((v, k) => p.set(k, v));
       if (plateSearch) p.set("number_plate", plateSearch);
 
+      // Table = current page; report (cards + charts) = single windowed call.
       const [sessRes, dashRes] = await Promise.all([
         publicViewApi.anprSessions(token, p.toString()),
-        publicViewApi.anprDashboard(token).catch(() => ({ data: null })),
+        publicViewApi.anprDashboard(token, win.toString()).catch(() => ({ data: null })),
       ]);
-      const items = sessRes.data.items || [];
-      const totalCount = sessRes.data.total || 0;
-      setSessions(items);
-      setTotal(totalCount);
+      setSessions(sessRes.data.items || []);
+      setTotal(sessRes.data.total || 0);
       setTotalPages(sessRes.data.total_pages || 0);
-
-      // Fetch remaining pages to compute full In/Out counts for cards
-      let allItems = [...items];
-      const totalPages2 = sessRes.data.total_pages || 1;
-      if (totalPages2 > 1) {
-        const remaining = await Promise.all(
-          Array.from({ length: totalPages2 - 1 }, (_, i) => {
-            const pp = new URLSearchParams(p);
-            pp.set("page", String(i + 2));
-            return publicViewApi.anprSessions(token, pp.toString()).then(r => r.data.items || []).catch(() => []);
-          })
-        );
-        allItems = allItems.concat(...remaining);
-      }
-
-      // Compute In/Out from session data within 10-6 window
-      const dash = dashRes.data?.summary;
-      if (dash) {
-        if (dateFilter === "today" && allItems.length === 0) {
-          setSummary({
-            ...dash,
-            car_in: 0, car_out: 0, car_available: dash.car_total,
-            two_wheeler_in: 0, two_wheeler_out: 0, two_wheeler_available: dash.two_wheeler_total,
-          });
-        } else {
-          const carIn = allItems.filter((s: any) => (s.vehicle_type === "CAR" || s.vehicle_type === "Car") && s.is_active).length;
-          const carOut = allItems.filter((s: any) => (s.vehicle_type === "CAR" || s.vehicle_type === "Car") && !s.is_active).length;
-          const twIn = allItems.filter((s: any) => (s.vehicle_type === "TWO_WHEELER" || s.vehicle_type === "Two Wheeler") && s.is_active).length;
-          const twOut = allItems.filter((s: any) => (s.vehicle_type === "TWO_WHEELER" || s.vehicle_type === "Two Wheeler") && !s.is_active).length;
-          setSummary({
-            ...dash,
-            car_in: carIn, car_out: carOut,
-            car_available: Math.max(0, dash.car_total - (carIn - carOut)),
-            two_wheeler_in: twIn, two_wheeler_out: twOut,
-            two_wheeler_available: Math.max(0, dash.two_wheeler_total - (twIn - twOut)),
-          });
-        }
-      } else {
-        setSummary(null);
-      }
+      setReport(dashRes.data?.report || null);
     } catch { /* */ }
     setLoading(false);
   }, [token, page, plateSearch]);
@@ -588,16 +607,33 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
           </span>
         </div>
 
-        {/* Cars + Two Wheeler summary (PDF style) */}
-        {summary && (<>
+        {/* Report cards + charts (PDF style) */}
+        {report && (<>
+          {/* KPI row: Occupancy / Revenue / Accuracy */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">Occupancy</p>
+              <p className="text-[28px] font-bold leading-none text-teal-700">{report.summary.occupancy_pct}%</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">Revenue</p>
+              <p className="text-[28px] font-bold leading-none text-emerald-700">₹{report.summary.revenue}</p>
+            </div>
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">Accuracy</p>
+              <p className="text-[28px] font-bold leading-none text-violet-700">{report.summary.accuracy_pct}%</p>
+            </div>
+          </div>
+
+          {/* Cars */}
           <div>
             <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
-                { label: "In", value: summary.car_in ?? summary.car_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
-                { label: "Out", value: summary.car_out ?? 0, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
-                { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Total cars", value: report.summary.car.total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
+                { label: "In", value: report.summary.car.in, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: report.summary.car.out, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "Available", value: report.summary.car.available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
@@ -606,14 +642,16 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
               ))}
             </div>
           </div>
+
+          {/* 2 Wheeler */}
           <div>
             <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
-                { label: "In", value: summary.two_wheeler_in ?? summary.two_wheeler_occupied, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
-                { label: "Out", value: summary.two_wheeler_out ?? 0, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
-                { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Total 2W", value: report.summary.bike.total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+                { label: "In", value: report.summary.bike.in, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600" },
+                { label: "Out", value: report.summary.bike.out, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+                { label: "Available", value: report.summary.bike.available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
@@ -621,6 +659,12 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Charts: Hourly In/Out + Duration Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <InOutChart chart={report.analytics.chart} />
+            <DurationBreakdownChart data={report.analytics.duration} />
           </div>
         </>)}
 
@@ -641,6 +685,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
                 {f("entry_time") && <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Time</th>}
                 {f("exit_time") && <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Out Time</th>}
                 {f("duration") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Duration</th>}
+                {f("revenue") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Revenue</th>}
                 {f("status") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>}
                 {f("location") && <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>}
               </tr></thead>
@@ -655,6 +700,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
                     {f("entry_time") && <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1.5"><ArrowDownToLine size={12} className="text-blue-400" /><div><p className="text-[13px] font-semibold text-slate-700">{formatDate(s.entry_time)}</p><p className="text-[12px] text-slate-500 font-medium">{formatTime(s.entry_time)}</p></div></div></td>}
                     {f("exit_time") && <td className="px-4 py-3 text-center">{s.exit_time ? <div className="flex items-center justify-center gap-1.5"><ArrowUpFromLine size={12} className="text-red-400" /><div><p className="text-[13px] font-semibold text-slate-700">{formatDate(s.exit_time)}</p><p className="text-[12px] text-slate-500 font-medium">{formatTime(s.exit_time)}</p></div></div> : <span className="text-[12px] text-slate-300">—</span>}</td>}
                     {f("duration") && <td className="px-3 py-3 text-center"><span className={`text-[12px] font-semibold ${s.duration_display ? "text-slate-700" : "text-teal-600"}`}>{s.duration_display || "Active"}</span></td>}
+                    {f("revenue") && <td className="px-3 py-3 text-center"><span className={`text-[13px] font-bold ${s.revenue && s.revenue !== "-" ? "text-emerald-700" : "text-slate-300"}`}>{s.revenue && s.revenue !== "-" ? `₹${s.revenue}` : "—"}</span></td>}
                     {f("status") && <td className="px-3 py-3 text-center"><span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${s.is_active ? "text-teal-700 bg-teal-50" : "text-emerald-700 bg-emerald-50"}`}><span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? "bg-teal-500 animate-pulse" : "bg-emerald-500"}`} />{s.is_active ? "Parked" : "Completed"}</span></td>}
                     {f("location") && <td className="px-4 py-3"><span className="text-[13px] text-slate-600">{s.location_name || "—"}</span></td>}
                   </tr>

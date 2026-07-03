@@ -416,6 +416,28 @@ export interface AnprSession {
   location_name: string | null;
   created_at: string;
   updated_at: string;
+  revenue?: string | null; // Rs; populated by the public shared-link view ("-" when not exited)
+}
+
+/** ANPR report payload (cards + charts) returned under `report` by the public anpr-dashboard endpoint. */
+export interface AnprReportVehicle {
+  total: number;
+  in: number;
+  out: number;
+  available: number;
+}
+export interface AnprReport {
+  summary: {
+    car: AnprReportVehicle;
+    bike: AnprReportVehicle;
+    occupancy_pct: number;
+    revenue: string;
+    accuracy_pct: number;
+  };
+  analytics: {
+    chart: { labels: string[]; in: number[]; out: number[]; granularity: string };
+    duration: { label: string; count: number }[];
+  };
 }
 
 export interface AnprDashboardSummary {

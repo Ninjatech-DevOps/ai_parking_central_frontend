@@ -53,6 +53,7 @@ const FIELD_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "entry_time", label: "Entry Time" },
     { value: "exit_time", label: "Exit Time" },
     { value: "duration", label: "Duration" },
+    { value: "revenue", label: "Revenue" },
     { value: "status", label: "Status" },
     { value: "location", label: "Location" },
   ],
