@@ -70,6 +70,63 @@ function PublicViewSkeleton() {
   );
 }
 
+/* ─── First-load skeleton for the report tabs (AI Parking + ANPR) ─── */
+function ReportCardSkel() {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4">
+      <Skel className="w-16 h-3 mb-2" />
+      <Skel className="w-14 h-7" />
+    </div>
+  );
+}
+function ReportTabSkeleton({ kpi = false }: { kpi?: boolean }) {
+  return (
+    <div className="px-4 sm:px-6 py-4">
+      <div className="max-w-7xl mx-auto space-y-4 animate-pulse">
+        {/* Title */}
+        <Skel className="w-56 h-7" />
+        {/* KPI row (ANPR only) */}
+        {kpi && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, i) => <ReportCardSkel key={i} />)}
+          </div>
+        )}
+        {/* Cars */}
+        <Skel className="w-24 h-4" />
+        <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <ReportCardSkel key={i} />)}</div>
+        {/* 2 Wheeler */}
+        <Skel className="w-24 h-4" />
+        <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <ReportCardSkel key={i} />)}</div>
+        {/* Charts 60/40 */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3 bg-white rounded-2xl card-shadow p-6">
+            <Skel className="w-40 h-5 mb-6" />
+            <Skel className="w-full h-[180px] rounded-xl" />
+          </div>
+          <div className="lg:col-span-2 bg-white rounded-2xl card-shadow p-6">
+            <Skel className="w-32 h-5 mb-6" />
+            <div className="space-y-4">{Array.from({ length: 5 }).map((_, i) => <Skel key={i} className="w-full h-8 rounded-lg" />)}</div>
+          </div>
+        </div>
+        {/* Table */}
+        <Skel className="w-44 h-4" />
+        <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+          <div className="h-11 bg-slate-50 border-b border-slate-100" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-3.5 border-b border-slate-50">
+              <Skel className="w-12 h-12 rounded-lg shrink-0" />
+              <Skel className="w-28 h-4" />
+              <Skel className="w-16 h-4" />
+              <Skel className="flex-1 h-4" />
+              <Skel className="w-16 h-4" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Dashboard Parking Tab ─── */
 function DashboardParkingTab({ data }: { data: PublicViewResponse }) {
   const [showDebug, setShowDebug] = useState(false);
@@ -459,6 +516,8 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
 
   useEffect(() => { fetchData(); const i = setInterval(fetchData, 15000); return () => clearInterval(i); }, [fetchData]);
 
+  if (loading && !summary) return <ReportTabSkeleton />;
+
   return (
     <div className="px-4 sm:px-6 py-4">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -751,6 +810,8 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
 
   useEffect(() => { fetchData(); const i = setInterval(fetchData, 15000); return () => clearInterval(i); }, [fetchData]);
   useEffect(() => { setPage(1); }, [plateSearch]);
+
+  if (loading && sessions.length === 0) return <ReportTabSkeleton kpi />;
 
   return (
     <div className="px-4 sm:px-6 py-4">
