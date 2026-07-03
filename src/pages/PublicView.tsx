@@ -494,36 +494,37 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
 }
 
 /* ─── ANPR report charts (mirror the PDF) ─── */
-function InOutChart({ chart }: { chart: AnprReport["analytics"]["chart"] }) {
-  const max = Math.max(1, ...chart.in, ...chart.out);
-  const everyN = Math.ceil((chart.labels.length || 1) / 8);
+function HourlyEntryChart({ chart }: { chart: AnprReport["analytics"]["chart"] }) {
+  const max = Math.max(1, ...chart.in);
   return (
-    <div className="bg-white rounded-2xl card-shadow p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[13px] font-bold text-slate-800">Hourly In / Out</h3>
-        <div className="flex items-center gap-3 text-[10px] font-semibold">
-          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-blue-400" /> In</span>
-          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Out</span>
-        </div>
+    <div className="bg-white rounded-2xl card-shadow p-6 h-full">
+      <div className="mb-6">
+        <h3 className="text-[20px] font-extrabold text-slate-900">Hourly Entry Pattern</h3>
+        <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
       </div>
       {chart.labels.length === 0 ? (
-        <p className="text-[12px] text-slate-400 text-center py-10">No entries in this window</p>
-      ) : (<>
-        <div className="flex items-end gap-[3px] h-[130px]">
-          {chart.labels.map((_, i) => (
-            <div key={i} className="flex-1 flex items-end justify-center gap-[2px] h-full group relative">
-              <div className="w-1/2 bg-blue-400 rounded-t transition-all" style={{ height: `${(chart.in[i] / max) * 100}%`, minHeight: chart.in[i] > 0 ? 2 : 0 }} />
-              <div className="w-1/2 bg-amber-400 rounded-t transition-all" style={{ height: `${(chart.out[i] / max) * 100}%`, minHeight: chart.out[i] > 0 ? 2 : 0 }} />
-              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">{chart.labels[i]}: In {chart.in[i]} · Out {chart.out[i]}</div>
+        <p className="text-[13px] text-slate-400 text-center py-16">No entries in this window</p>
+      ) : (
+        <div className="flex items-end gap-3 h-[260px] border-b border-slate-100">
+          {chart.labels.map((label, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+              <span className="text-[13px] font-bold text-slate-700 mb-1.5">{chart.in[i] > 0 ? chart.in[i] : ""}</span>
+              <div
+                className="w-full max-w-[54px] bg-violet-500 rounded-lg transition-all"
+                style={{ height: `${(chart.in[i] / max) * 100}%`, minHeight: chart.in[i] > 0 ? 6 : 0 }}
+                title={`${label}: ${chart.in[i]} entries`}
+              />
             </div>
           ))}
         </div>
-        <div className="flex gap-[3px] mt-1.5">
-          {chart.labels.map((l, i) => (
-            <div key={i} className="flex-1 text-center text-[7px] text-slate-400 truncate">{i % everyN === 0 ? l : ""}</div>
+      )}
+      {chart.labels.length > 0 && (
+        <div className="flex gap-3 mt-2">
+          {chart.labels.map((label, i) => (
+            <div key={i} className="flex-1 text-center text-[12px] font-medium text-slate-400">{label}</div>
           ))}
         </div>
-      </>)}
+      )}
     </div>
   );
 }
@@ -532,8 +533,11 @@ function DurationBreakdownChart({ data }: { data: { label: string; count: number
   const max = Math.max(1, ...data.map((d) => d.count));
   const colors = ["bg-emerald-400", "bg-teal-400", "bg-blue-400", "bg-amber-400", "bg-red-400"];
   return (
-    <div className="bg-white rounded-2xl card-shadow p-5">
-      <h3 className="text-[13px] font-bold text-slate-800 mb-4">Duration Breakdown</h3>
+    <div className="bg-white rounded-2xl card-shadow p-6 h-full">
+      <div className="mb-6">
+        <h3 className="text-[20px] font-extrabold text-slate-900">Duration Breakdown</h3>
+        <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
+      </div>
       <div className="space-y-3">
         {data.map((d, i) => (
           <div key={d.label} className="flex items-center gap-3">
@@ -663,10 +667,10 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
             </div>
           </div>
 
-          {/* Charts: Hourly In/Out + Duration Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <InOutChart chart={report.analytics.chart} />
-            <DurationBreakdownChart data={report.analytics.duration} />
+          {/* Charts side by side, 60 / 40 — same as the PDF export */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
+            <div className="lg:col-span-3"><HourlyEntryChart chart={report.analytics.chart} /></div>
+            <div className="lg:col-span-2"><DurationBreakdownChart data={report.analytics.duration} /></div>
           </div>
         </>)}
 
@@ -687,7 +691,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
                 {f("entry_time") && <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Time</th>}
                 {f("exit_time") && <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Out Time</th>}
                 {f("duration") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Duration</th>}
-                {f("revenue") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Revenue</th>}
+                <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Revenue</th>
                 {f("status") && <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>}
                 {f("location") && <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>}
               </tr></thead>
@@ -702,7 +706,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
                     {f("entry_time") && <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1.5"><ArrowDownToLine size={12} className="text-blue-400" /><div><p className="text-[13px] font-semibold text-slate-700">{formatDate(s.entry_time)}</p><p className="text-[12px] text-slate-500 font-medium">{formatTime(s.entry_time)}</p></div></div></td>}
                     {f("exit_time") && <td className="px-4 py-3 text-center">{s.exit_time ? <div className="flex items-center justify-center gap-1.5"><ArrowUpFromLine size={12} className="text-red-400" /><div><p className="text-[13px] font-semibold text-slate-700">{formatDate(s.exit_time)}</p><p className="text-[12px] text-slate-500 font-medium">{formatTime(s.exit_time)}</p></div></div> : <span className="text-[12px] text-slate-300">—</span>}</td>}
                     {f("duration") && <td className="px-3 py-3 text-center"><span className={`text-[12px] font-semibold ${s.duration_display ? "text-slate-700" : "text-teal-600"}`}>{s.duration_display || "Active"}</span></td>}
-                    {f("revenue") && <td className="px-3 py-3 text-center"><span className={`text-[13px] font-bold ${s.revenue && s.revenue !== "-" ? "text-emerald-700" : "text-slate-300"}`}>{s.revenue && s.revenue !== "-" ? `₹${s.revenue}` : "—"}</span></td>}
+                    <td className="px-3 py-3 text-center"><span className={`text-[13px] font-bold ${s.revenue && s.revenue !== "-" ? "text-emerald-700" : "text-slate-300"}`}>{s.revenue && s.revenue !== "-" ? `₹${s.revenue}` : "—"}</span></td>
                     {f("status") && <td className="px-3 py-3 text-center"><span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${s.is_active ? "text-teal-700 bg-teal-50" : "text-emerald-700 bg-emerald-50"}`}><span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? "bg-teal-500 animate-pulse" : "bg-emerald-500"}`} />{s.is_active ? "Parked" : "Completed"}</span></td>}
                     {f("location") && <td className="px-4 py-3"><span className="text-[13px] text-slate-600">{s.location_name || "—"}</span></td>}
                   </tr>
