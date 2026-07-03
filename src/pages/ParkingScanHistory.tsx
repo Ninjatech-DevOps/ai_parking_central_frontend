@@ -1,16 +1,15 @@
-import { useState, useCallback, useEffect, useRef, type ElementType } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useFilter } from "@/contexts/FilterContext";
 import { parkingHistoryApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
   Download, FileSpreadsheet, FileText,
-  X, Loader2, Image as ImageIcon, Clock, Check, Pencil,
-  Car, Bike, CircleCheck,
+  X, Loader2, Image as ImageIcon, Clock, Pencil,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { ParkingScan, OccupancySummary } from "@/types/api";
-import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel, SkeletonStatCards } from "@/components/Skeleton";
+import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
 
 function ParkingScanHistorySkeleton() {
   return (
@@ -23,19 +22,6 @@ function ParkingScanHistorySkeleton() {
       </div>
       <SkeletonTable rows={8} cols={11} />
     </SkeletonShell>
-  );
-}
-
-/** Occupancy summary card (same look as the Dashboard StatCard). */
-function StatCard({ label, value, icon: Icon, bg, text }: { label: string; value: number | string; icon: ElementType; bg: string; text: string }) {
-  return (
-    <div className="bg-white rounded-2xl card-shadow p-4 flex flex-col items-center text-center transition-lift hover:card-shadow-hover">
-      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-2`}>
-        <Icon size={18} className={text} />
-      </div>
-      <p className={`text-[24px] font-extrabold leading-none ${text}`}>{value}</p>
-      <p className="text-[10px] text-slate-400 mt-1.5 uppercase tracking-wider font-bold">{label}</p>
-    </div>
   );
 }
 
@@ -354,17 +340,57 @@ export default function ParkingScanHistory() {
         </div>
       </div>
 
-      {/* Occupancy summary cards — latest scan per location, summed across scope */}
+      {/* Occupancy summary cards — grouped Cars / 2 Wheeler (Total / Occupied / Available / Occupancy) */}
       {summary === null ? (
-        <SkeletonStatCards count={6} cols={6} />
+        <div className="space-y-4 mb-6 animate-pulse">
+          {[0, 1].map((g) => (
+            <div key={g}>
+              <Skel className="w-24 h-4 mb-2" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-slate-100 p-4">
+                    <Skel className="w-16 h-3 mb-2" />
+                    <Skel className="w-14 h-7" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <StatCard label="Car Occupied" value={summary.car_occupied} icon={Car} bg="bg-red-50" text="text-red-500" />
-          <StatCard label="Car Available" value={summary.car_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
-          <StatCard label="Car Total" value={summary.car_total} icon={Car} bg="bg-blue-50" text="text-blue-600" />
-          <StatCard label="2W Occupied" value={summary.two_wheeler_occupied} icon={Bike} bg="bg-red-50" text="text-red-500" />
-          <StatCard label="2W Available" value={summary.two_wheeler_available} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
-          <StatCard label="2W Total" value={summary.two_wheeler_total} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
+        <div className="space-y-4 mb-6">
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
+                { label: "Occupied", value: summary.car_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
+                { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Occupancy", value: `${summary.car_total > 0 ? Math.round((summary.car_occupied / summary.car_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+                { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
+                { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Occupancy", value: `${summary.two_wheeler_total > 0 ? Math.round((summary.two_wheeler_occupied / summary.two_wheeler_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+              ].map(({ label, value, border, bg, text }) => (
+                <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+                  <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

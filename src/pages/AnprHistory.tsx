@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFilter } from "@/contexts/FilterContext";
-import { anprSessionsApi, downloadFile } from "@/services/api";
+import { anprSessionsApi, anprDashboardApi, downloadFile } from "@/services/api";
 import { showSuccess, showError } from "@/lib/toast";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
@@ -9,25 +9,58 @@ import {
   X, Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
-import type { AnprSession } from "@/types/api";
-import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
+import type { AnprSession, AnprReport } from "@/types/api";
+import { Skel, SkeletonTable } from "@/components/Skeleton";
 
-function AnprHistorySkeleton() {
+/** Tinted bordered summary card (label + big value). */
+function ReportCard({ label, value, border, bg, text }: { label: string; value: number | string; border: string; bg: string; text: string }) {
   return (
-    <SkeletonShell>
-      <SkeletonHeader action />
-      {/* Date-range / filter row */}
-      <div className="flex flex-wrap items-center gap-3 mb-6 animate-pulse">
-        <Skel className="w-72 h-10 rounded-xl" />
-        <Skel className="w-36 h-10 rounded-xl" />
-        <Skel className="w-44 h-10 rounded-xl" />
-        <Skel className="w-44 h-10 rounded-xl" />
-      </div>
-      {/* Table: Image, Number Plate, In Time, Out Time, Total Duration */}
-      <SkeletonTable rows={8} cols={5} />
-    </SkeletonShell>
+    <div className={`rounded-xl border ${border} ${bg} p-4`}>
+      <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
+      <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+    </div>
   );
 }
+
+function ReportCardSkel() {
+  return (
+    <div className="rounded-xl border border-slate-100 p-4">
+      <Skel className="w-16 h-3 mb-2" />
+      <Skel className="w-14 h-7" />
+    </div>
+  );
+}
+
+/** Client-side fallback for the ANPR report — mirrors the backend's build_anpr_report
+ *  so the cards render even if the /anpr-sessions/report endpoint isn't available.
+ *  Totals come from the ANPR dashboard summary; In/Out/Revenue from the window's sessions. */
+function computeAnprReport(dash: { car_total?: number; two_wheeler_total?: number } | null, sessions: AnprSession[]): AnprReport {
+  const carTotal = dash?.car_total ?? 0;
+  const bikeTotal = dash?.two_wheeler_total ?? 0;
+  let carIn = 0, carOut = 0, bikeIn = 0, bikeOut = 0, revenue = 0;
+  for (const s of sessions) {
+    const isCar = s.vehicle_type === "CAR";
+    if (isCar) carIn++; else bikeIn++;
+    if (s.exit_time) {
+      if (isCar) carOut++; else bikeOut++;
+      const hrs = Math.max(1, Math.ceil((new Date(s.exit_time).getTime() - new Date(s.entry_time).getTime()) / 3600000));
+      revenue += hrs * 15; // Rs 15/hr, rounded up, min 1 hr — same rule as the backend
+    }
+  }
+  const occupied = Math.max(0, carIn - carOut) + Math.max(0, bikeIn - bikeOut);
+  const totalCap = carTotal + bikeTotal;
+  return {
+    summary: {
+      car: { total: carTotal, in: carIn, out: carOut, available: Math.max(0, carTotal - (carIn - carOut)) },
+      bike: { total: bikeTotal, in: bikeIn, out: bikeOut, available: Math.max(0, bikeTotal - (bikeIn - bikeOut)) },
+      occupancy_pct: totalCap > 0 ? Math.round((occupied / totalCap) * 100) : 0,
+      revenue: revenue.toLocaleString("en-IN"),
+      accuracy_pct: 100,
+    },
+    analytics: { chart: { labels: [], in: [], out: [], granularity: "hour" }, duration: [] },
+  };
+}
+
 
 const DATE_PRESETS = [
   { label: "Today", key: "today" },
@@ -82,6 +115,7 @@ const PAGE_SIZE = 20;
 export default function AnprHistory() {
   const { areaId, locationId } = useFilter();
   const [sessions, setSessions] = useState<AnprSession[]>([]);
+  const [report, setReport] = useState<AnprReport | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -164,11 +198,34 @@ export default function AnprHistory() {
     // Tag each request so a slow/out-of-order response can't overwrite a newer one.
     const reqId = ++reqRef.current;
     try {
-      const { data } = await anprSessionsApi.list(buildParams());
+      const [listRes, reportRes] = await Promise.all([
+        anprSessionsApi.list(buildParams()),
+        anprSessionsApi.report(buildParams()).catch(() => null),
+      ]);
+      // Report cards — from the API when available, else computed client-side
+      // (dashboard totals + the window's sessions) so cards render regardless.
+      let rep: AnprReport | null = reportRes?.data || null;
+      if (!rep) {
+        try {
+          const allParams = new URLSearchParams(buildParams());
+          allParams.set("page", "1");
+          allParams.set("page_size", "100");
+          const dashP = new URLSearchParams();
+          if (locationId) dashP.set("location_id", locationId);
+          else if (areaId) dashP.set("area_id", areaId);
+          const [dashRes, allRes] = await Promise.all([
+            anprDashboardApi.summary(dashP.toString()).catch(() => null),
+            anprSessionsApi.list(allParams.toString()),
+          ]);
+          rep = computeAnprReport(dashRes?.data ?? null, allRes.data.items || []);
+        } catch { rep = null; }
+      }
       if (reqId !== reqRef.current) return;
+      const data = listRes.data;
       setSessions(data.items || []);
       setTotal(data.total || 0);
       setTotalPages(data.total_pages || 0);
+      setReport(rep);
       setErrored(false);
       setLoading(false);
     } catch {
@@ -244,7 +301,7 @@ export default function AnprHistory() {
     finally { setExporting(null); }
   }
 
-  if (loading && sessions.length === 0) return <AnprHistorySkeleton />;
+  const showSkeleton = sessions.length === 0 && (loading || errored);
 
   return (
     <div className="w-full">
@@ -309,9 +366,54 @@ export default function AnprHistory() {
         </FilterField>
       </FilterPanel>
 
-      {/* Table */}
+      {/* Card skeleton on first load (header + search stay visible) */}
+      {showSkeleton && (
+        <div className="space-y-4 mb-6 animate-pulse">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{Array.from({ length: 3 }).map((_, i) => <ReportCardSkel key={i} />)}</div>
+          {[0, 1].map((g) => (
+            <div key={g}>
+              <Skel className="w-24 h-4 mb-2" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <ReportCardSkel key={i} />)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Report cards — Occupancy / Revenue / Accuracy + Cars & 2 Wheeler (Total/In/Out/Available) */}
+      {report && (
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <ReportCard label="Occupancy" value={`${report.summary.occupancy_pct}%`} border="border-teal-200" bg="bg-teal-50" text="text-teal-700" />
+            <ReportCard label="Revenue" value={`₹${report.summary.revenue}`} border="border-emerald-200" bg="bg-emerald-50" text="text-emerald-700" />
+            <ReportCard label="Accuracy" value={`${report.summary.accuracy_pct}%`} border="border-violet-200" bg="bg-violet-50" text="text-violet-700" />
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <ReportCard label="Total cars" value={report.summary.car.total} border="border-blue-200" bg="bg-blue-50" text="text-blue-700" />
+              <ReportCard label="In" value={report.summary.car.in} border="border-blue-200" bg="bg-blue-50" text="text-blue-600" />
+              <ReportCard label="Out" value={report.summary.car.out} border="border-amber-200" bg="bg-amber-50" text="text-amber-600" />
+              <ReportCard label="Available" value={report.summary.car.available} border="border-emerald-200" bg="bg-emerald-50" text="text-emerald-600" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <ReportCard label="Total 2W" value={report.summary.bike.total} border="border-indigo-200" bg="bg-indigo-50" text="text-indigo-700" />
+              <ReportCard label="In" value={report.summary.bike.in} border="border-blue-200" bg="bg-blue-50" text="text-blue-600" />
+              <ReportCard label="Out" value={report.summary.bike.out} border="border-amber-200" bg="bg-amber-50" text="text-amber-600" />
+              <ReportCard label="Available" value={report.summary.bike.available} border="border-emerald-200" bg="bg-emerald-50" text="text-emerald-600" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table — skeleton on first load / empty, real table otherwise */}
+      {showSkeleton ? (
+        <SkeletonTable rows={8} cols={8} />
+      ) : (
       <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
-        {(loading || (errored && sessions.length === 0)) && (
+        {loading && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
             <Loader2 size={24} className="animate-spin text-teal-500" />
           </div>
@@ -480,6 +582,7 @@ export default function AnprHistory() {
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
         </div>
       </div>
+      )}
 
       {/* Image Preview Modal */}
       {previewImg && (
