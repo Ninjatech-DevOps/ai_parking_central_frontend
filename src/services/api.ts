@@ -292,6 +292,10 @@ export const parkingHistoryApi = {
 };
 
 /** Download a file via authenticated axios request and trigger browser save. */
+export const demoReportApi = {
+  downloadPdf: (params?: string) => downloadFile(`/demo-report/pdf?${params || ""}`, `demo_report_${new Date().toISOString().slice(0, 10)}.pdf`),
+};
+
 export async function downloadFile(url: string, filename: string) {
   const resp = await api.get(url, { responseType: "blob" });
   const blob = new Blob([resp.data]);

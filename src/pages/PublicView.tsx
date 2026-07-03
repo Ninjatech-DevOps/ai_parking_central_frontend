@@ -341,11 +341,12 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
         {summary && (<>
           <div>
             <p className="text-[14px] font-bold text-slate-800 mb-2">Cars</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {[
                 { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
                 { label: "Occupied", value: summary.car_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Occupancy", value: `${summary.car_total > 0 ? Math.round((summary.car_occupied / summary.car_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
@@ -356,11 +357,12 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
           </div>
           <div>
             <p className="text-[14px] font-bold text-slate-800 mb-2">2 Wheeler</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {[
                 { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+                { label: "Occupancy", value: `${summary.two_wheeler_total > 0 ? Math.round((summary.two_wheeler_occupied / summary.two_wheeler_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
