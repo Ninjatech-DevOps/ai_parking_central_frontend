@@ -229,8 +229,8 @@ export const publicViewApi = {
   get: (token: string) => api.get<PublicViewResponse>(`/public/view/${token}`),
   parkingHistory: (token: string, params?: string) =>
     api.get<PaginatedResponse<ParkingScan>>(`/public/view/${token}/parking-history?${params || ""}`),
-  occupancySummary: (token: string) =>
-    api.get<OccupancySummary>(`/public/view/${token}/parking-history/occupancy-summary`),
+  occupancySummary: (token: string, params?: string) =>
+    api.get<OccupancySummary>(`/public/view/${token}/parking-history/occupancy-summary?${params || ""}`),
   anprRecords: (token: string, params?: string) =>
     api.get<PaginatedResponse<AnprRecord>>(`/public/view/${token}/anpr-records?${params || ""}`),
   anprSessions: (token: string, params?: string) =>

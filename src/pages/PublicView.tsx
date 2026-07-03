@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { publicViewApi } from "@/services/api";
 import Pagination from "@/components/Pagination";
-import type { PublicViewResponse, ViewConfig, ParkingScan, AnprRecord, AnprSession, OccupancySummary, AnprReport } from "@/types/api";
+import type { PublicViewResponse, ViewConfig, ParkingScan, AnprRecord, AnprSession, OccupancySummary, AnprReport, ParkingReport } from "@/types/api";
 import { Skel } from "@/components/Skeleton";
 
 const PAGE_LABELS: Record<string, string> = {
@@ -246,6 +246,134 @@ function AnprDashboardTab({ token }: { token: string }) {
   );
 }
 
+/* ─── AI Parking report charts (mirror the PDF) ─── */
+function hourLabel(h: number): string {
+  if (h === 12) return "12pm";
+  if (h > 12) return `${h - 12}pm`;
+  return `${h}am`;
+}
+function hourLabelFull(h: number): string {
+  if (h === 0) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
+}
+
+/** Client-side fallback for the AI Parking report — mirrors the backend's
+ *  build_parking_report so the chart/stats render even if the API omits `report`. */
+function computeParkingReport(scans: ParkingScan[]): ParkingReport {
+  const hourly: ParkingReport["hourly"] = [];
+  for (let h = 10; h <= 18; h++) {
+    let best: ParkingScan | null = null;
+    let bestDiff = Infinity;
+    for (const s of scans) {
+      if (!s.recorded_at) continue;
+      const d = new Date(s.recorded_at);
+      const diff = Math.abs((d.getHours() * 60 + d.getMinutes()) - h * 60);
+      if (diff < bestDiff && diff <= 30) { bestDiff = diff; best = s; }
+    }
+    hourly.push({
+      hour: h,
+      occ_car: best?.car_occupied ?? 0,
+      tot_car: best?.car_total ?? 0,
+      occ_bike: best?.two_wheeler_occupied ?? 0,
+      tot_bike: best?.two_wheeler_total ?? 0,
+    });
+  }
+  const hourlyOcc: Record<number, number> = {};
+  hourly.forEach((d) => { hourlyOcc[d.hour] = d.occ_car + d.occ_bike; });
+  let peakVal = 0, peakHour = -1;
+  for (const [h, v] of Object.entries(hourlyOcc)) { if (v > peakVal) { peakVal = v; peakHour = Number(h); } }
+
+  const allCar: number[] = [], all2w: number[] = [];
+  let maxCars = 0, max2w = 0, peakPct = 0;
+  for (const s of scans) {
+    const carPct = s.car_total > 0 ? Math.round((s.car_occupied / s.car_total) * 100) : 0;
+    const bikePct = s.two_wheeler_total > 0 ? Math.round((s.two_wheeler_occupied / s.two_wheeler_total) * 100) : 0;
+    peakPct = Math.max(peakPct, carPct, bikePct);
+    maxCars = Math.max(maxCars, s.car_occupied);
+    max2w = Math.max(max2w, s.two_wheeler_occupied);
+    if (s.car_total > 0) allCar.push(carPct);
+    if (s.two_wheeler_total > 0) all2w.push(bikePct);
+  }
+  const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
+  return {
+    hourly,
+    stats: {
+      peak_hour_label: peakVal > 0 ? hourLabelFull(peakHour) : "-",
+      peak_hour_count: peakVal,
+      peak_occupancy_pct: peakPct,
+      avg_car_occ: avg(allCar),
+      avg_2w_occ: avg(all2w),
+      max_cars: maxCars,
+      max_2w: max2w,
+    },
+  };
+}
+
+function HourlyOccupancyChart({ hourly }: { hourly: ParkingReport["hourly"] }) {
+  const max = Math.max(1, ...hourly.map((h) => h.occ_car), ...hourly.map((h) => h.occ_bike));
+  const hasData = hourly.some((h) => h.occ_car > 0 || h.occ_bike > 0);
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-6 h-full">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h3 className="text-[16px] font-extrabold text-slate-900">Hourly Occupancy</h3>
+          <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
+        </div>
+        <div className="flex items-center gap-3 text-[10px] font-semibold">
+          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Car</span>
+          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500" /> 2W</span>
+        </div>
+      </div>
+      {!hasData ? (
+        <p className="text-[13px] text-slate-400 text-center py-16">No occupancy in this window</p>
+      ) : (<>
+        <div className="flex items-end gap-3 h-[230px] border-b border-slate-100">
+          {hourly.map((h, i) => (
+            <div key={i} className="flex-1 flex items-end justify-center gap-[3px] h-full group relative">
+              <div className="w-1/2 max-w-[22px] bg-blue-500 rounded-t transition-all" style={{ height: `${(h.occ_car / max) * 100}%`, minHeight: h.occ_car > 0 ? 4 : 0 }} />
+              <div className="w-1/2 max-w-[22px] bg-indigo-500 rounded-t transition-all" style={{ height: `${(h.occ_bike / max) * 100}%`, minHeight: h.occ_bike > 0 ? 4 : 0 }} />
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">{hourLabel(h.hour)}: Car {h.occ_car} · 2W {h.occ_bike}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 mt-2">
+          {hourly.map((h, i) => <div key={i} className="flex-1 text-center text-[12px] font-medium text-slate-400">{hourLabel(h.hour)}</div>)}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+function OccupancySummaryStats({ stats }: { stats: ParkingReport["stats"] }) {
+  const tiles = [
+    { label: "Peak Hour", value: stats.peak_hour_label, sub: stats.peak_hour_count ? `${stats.peak_hour_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+    { label: "Peak Occupancy", value: `${stats.peak_occupancy_pct}%`, border: "border-violet-200", bg: "bg-violet-50", text: "text-violet-700" },
+    { label: "Avg Car Occ", value: `${stats.avg_car_occ}%`, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
+    { label: "Avg 2W Occ", value: `${stats.avg_2w_occ}%`, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+    { label: "Max Cars", value: String(stats.max_cars), border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
+    { label: "Max 2W", value: String(stats.max_2w), border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
+  ];
+  return (
+    <div className="bg-white rounded-2xl card-shadow p-6 h-full">
+      <div className="mb-6">
+        <h3 className="text-[16px] font-extrabold text-slate-900">Summary</h3>
+        <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div key={t.label} className={`rounded-xl border ${t.border} ${t.bg} p-3`}>
+            <p className="text-[10px] font-semibold text-slate-500 mb-1">{t.label}</p>
+            <p className={`text-[22px] font-bold leading-none ${t.text}`}>{t.value}</p>
+            {t.sub && <p className="text-[10px] text-slate-400 mt-1">{t.sub}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Parking History Tab (same UI as ParkingScanHistory) ─── */
 function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: ViewConfig | null }) {
   const [scans, setScans] = useState<ParkingScan[]>([]);
@@ -263,6 +391,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
   const fetchData = useCallback(async () => {
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      const win = new URLSearchParams(); // window shared by the table + report (chart/stats)
       if (dateFilter === "today") {
         // Show only 10 AM – 6 PM, sampled every 5 min
         const now = new Date();
@@ -271,24 +400,39 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
         p.set("start_date", todayStart.toISOString());
         p.set("end_date", todayEnd.toISOString());
         p.set("interval_minutes", "5");
+        win.set("start_date", todayStart.toISOString());
+        win.set("end_date", todayEnd.toISOString());
       }
       const [scanRes, summaryRes] = await Promise.all([
         publicViewApi.parkingHistory(token, p.toString()),
-        publicViewApi.occupancySummary(token),
+        publicViewApi.occupancySummary(token, win.toString()),
       ]);
       const items = scanRes.data.items || [];
       setScans(items);
       setTotal(scanRes.data.total || 0);
       setTotalPages(scanRes.data.total_pages || 0);
 
+      // Chart/stats report — from the API when present, else computed client-side
+      // from the full window's scans (so the chart renders regardless of backend).
+      let report = summaryRes.data.report;
+      if (!report) {
+        try {
+          const allP = new URLSearchParams(win);
+          allP.set("page_size", "100"); // endpoint caps at 100; 96 five-min samples cover 10 AM-6 PM
+          if (dateFilter === "today") allP.set("interval_minutes", "5");
+          const allRes = await publicViewApi.parkingHistory(token, allP.toString());
+          report = computeParkingReport(allRes.data.items || []);
+        } catch { /* leave report undefined */ }
+      }
+
+      const s = summaryRes.data;
       // For "today" filter: lock cards to 10AM-6PM window
       if (dateFilter === "today") {
-        const s = summaryRes.data;
         if (items.length > 0 && page === 1) {
           // Use latest scan in the 10-6 window
           const latest = items[0];
           setSummary({
-            ...s,
+            ...s, report,
             car_occupied: latest.car_occupied,
             car_available: latest.car_available,
             car_total: latest.car_total,
@@ -299,7 +443,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
         } else {
           // No scans yet (before 10AM or no data) — show 0 occupied, full available
           setSummary({
-            ...s,
+            ...s, report,
             car_occupied: 0,
             car_available: s.car_total,
             two_wheeler_occupied: 0,
@@ -307,7 +451,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
           });
         }
       } else {
-        setSummary(summaryRes.data);
+        setSummary({ ...s, report });
       }
     } catch { /* */ }
     setLoading(false);
@@ -371,6 +515,15 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
               ))}
             </div>
           </div>
+
+          {/* Chart + stats, 60 / 40 — same as the PDF export */}
+          {summary.report && (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
+              <div className="lg:col-span-3"><HourlyOccupancyChart hourly={summary.report.hourly} /></div>
+              <div className="lg:col-span-2"><OccupancySummaryStats stats={summary.report.stats} /></div>
+            </div>
+          )}
+
           <p className="text-[14px] font-bold text-slate-700">Occupancy records ({total})</p>
         </>)}
         <div className="bg-white rounded-2xl card-shadow overflow-hidden relative">
@@ -499,16 +652,16 @@ function HourlyEntryChart({ chart }: { chart: AnprReport["analytics"]["chart"] }
   return (
     <div className="bg-white rounded-2xl card-shadow p-6 h-full">
       <div className="mb-6">
-        <h3 className="text-[20px] font-extrabold text-slate-900">Hourly Entry Pattern</h3>
+        <h3 className="text-[16px] font-extrabold text-slate-900">Hourly Entry Pattern</h3>
         <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
       </div>
       {chart.labels.length === 0 ? (
         <p className="text-[13px] text-slate-400 text-center py-16">No entries in this window</p>
       ) : (
-        <div className="flex items-end gap-3 h-[260px] border-b border-slate-100">
+        <div className="flex items-end gap-3 h-[180px] border-b border-slate-100">
           {chart.labels.map((label, i) => (
             <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
-              <span className="text-[13px] font-bold text-slate-700 mb-1.5">{chart.in[i] > 0 ? chart.in[i] : ""}</span>
+              <span className="text-[11px] font-bold text-slate-600 mb-1">{chart.in[i] > 0 ? chart.in[i] : ""}</span>
               <div
                 className="w-full max-w-[54px] bg-violet-500 rounded-lg transition-all"
                 style={{ height: `${(chart.in[i] / max) * 100}%`, minHeight: chart.in[i] > 0 ? 6 : 0 }}
@@ -521,7 +674,7 @@ function HourlyEntryChart({ chart }: { chart: AnprReport["analytics"]["chart"] }
       {chart.labels.length > 0 && (
         <div className="flex gap-3 mt-2">
           {chart.labels.map((label, i) => (
-            <div key={i} className="flex-1 text-center text-[12px] font-medium text-slate-400">{label}</div>
+            <div key={i} className="flex-1 text-center text-[10px] font-medium text-slate-400">{label}</div>
           ))}
         </div>
       )}
@@ -533,20 +686,20 @@ function DurationBreakdownChart({ data }: { data: { label: string; count: number
   const max = Math.max(1, ...data.map((d) => d.count));
   const colors = ["bg-emerald-400", "bg-teal-400", "bg-blue-400", "bg-amber-400", "bg-red-400"];
   return (
-    <div className="bg-white rounded-2xl card-shadow p-6 h-full">
+    <div className="bg-white rounded-2xl card-shadow p-6 h-full flex flex-col">
       <div className="mb-6">
-        <h3 className="text-[20px] font-extrabold text-slate-900">Duration Breakdown</h3>
+        <h3 className="text-[16px] font-extrabold text-slate-900">Duration Breakdown</h3>
         <div className="w-24 h-1 bg-teal-500 rounded-full mt-2" />
       </div>
-      <div className="space-y-3">
+      {/* Rows spread to fill the card height (matches the taller chart beside it) */}
+      <div className="flex-1 flex flex-col justify-between gap-4 py-1">
         {data.map((d, i) => (
           <div key={d.label} className="flex items-center gap-3">
-            <span className="text-[11px] text-slate-500 w-[72px] shrink-0 text-right">{d.label}</span>
-            <div className="flex-1 h-6 bg-slate-50 rounded-lg overflow-hidden">
-              <div className={`h-full ${colors[i % colors.length]} rounded-lg flex items-center justify-end pr-2 transition-all`} style={{ width: `${Math.max((d.count / max) * 100, d.count > 0 ? 8 : 0)}%` }}>
-                {d.count > 0 && <span className="text-[10px] font-bold text-white">{d.count}</span>}
-              </div>
+            <span className="text-[12px] text-slate-500 w-[72px] shrink-0 text-right">{d.label}</span>
+            <div className="flex-1 h-8 bg-slate-50 rounded-lg overflow-hidden">
+              <div className={`h-full ${colors[i % colors.length]} rounded-lg transition-all`} style={{ width: `${Math.max((d.count / max) * 100, d.count > 0 ? 4 : 0)}%` }} />
             </div>
+            <span className="text-[13px] font-bold text-slate-700 w-6 text-right shrink-0">{d.count}</span>
           </div>
         ))}
       </div>

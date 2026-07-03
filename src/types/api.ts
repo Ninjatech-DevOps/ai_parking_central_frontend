@@ -497,6 +497,27 @@ export interface ParkingScan {
 }
 
 // ─── Parking occupancy summary (latest scan per location, summed) ───
+/** Hourly occupancy bucket (10 AM-6 PM) + summary stats for the AI Parking shared-link report. */
+export interface ParkingHourlyBucket {
+  hour: number;
+  occ_car: number;
+  tot_car: number;
+  occ_bike: number;
+  tot_bike: number;
+}
+export interface ParkingReport {
+  hourly: ParkingHourlyBucket[];
+  stats: {
+    peak_hour_label: string;
+    peak_hour_count: number;
+    peak_occupancy_pct: number;
+    avg_car_occ: number;
+    avg_2w_occ: number;
+    max_cars: number;
+    max_2w: number;
+  };
+}
+
 export interface OccupancySummary {
   location_name: string;
   location_count: number;
@@ -507,4 +528,5 @@ export interface OccupancySummary {
   two_wheeler_occupied: number;
   two_wheeler_available: number;
   updated_at: string | null;
+  report?: ParkingReport;
 }
