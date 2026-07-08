@@ -351,7 +351,7 @@ export default function ParkingHistory() {
                   <p className="text-[11px] text-slate-300 mt-1">Adjust your filters or date range</p>
                 </td></tr>
               ) : sessions.map((s) => (
-                <tr key={s.entry_event_id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <tr key={s.entry_event_id} className={`border-b hover:bg-slate-50/50 transition-colors ${s.event_type === "OBSTRUCTED" ? "border-l-4 border-l-red-500 bg-red-50/40 border-b-red-100" : "border-b-slate-50"}`}>
                   {/* Slot */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

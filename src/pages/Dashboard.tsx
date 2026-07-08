@@ -195,7 +195,7 @@ export default function Dashboard() {
                 {cameraRows.map(({ cam, locName, total, available, occupied, obstructed, capCar, cap2w, occCar, occ2w }, idx) => {
                   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
                   return (
-                    <tr key={cam.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
+                    <tr key={cam.id} className={`border-b hover:bg-slate-50/60 transition-colors ${obstructed > 0 ? "border-l-4 border-l-red-500 bg-red-50/40 border-b-red-100" : `border-b-slate-50 ${idx % 2 === 0 ? "" : "bg-slate-25"}`}`}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
