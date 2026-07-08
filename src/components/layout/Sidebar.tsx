@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Monitor, Bell, Users, Settings, ParkingSquare,
+  LayoutDashboard, Monitor, Bell, Users, Settings,
   ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2, Download,
   ScanLine, Car,
 } from "lucide-react";
@@ -106,14 +106,9 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden lg:flex w-[240px] bg-white flex-col min-h-screen border-r border-slate-100 no-print">
-      <div className="px-5 h-14 flex items-center gap-2.5 border-b border-slate-50">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center shadow-md shadow-teal-600/20">
-          <ParkingSquare size={16} className="text-white" />
-        </div>
-        <div>
-          <h1 className="text-[14px] font-bold text-slate-900 tracking-tight leading-none">AI Parking</h1>
-          <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.12em] mt-0.5">Gujarat</p>
-        </div>
+      <div className="px-5 h-14 flex items-center gap-2 border-b border-slate-50">
+        <img src="/AIParking.jpg" alt="AI Parking" className="h-9 w-auto max-w-[140px] object-contain" />
+        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.12em]">Gujarat</span>
       </div>
 
       <nav className="flex-1 px-3 pt-4 overflow-auto">

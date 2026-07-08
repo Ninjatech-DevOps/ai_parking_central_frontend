@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ParkingSquare, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -31,10 +31,9 @@ export default function Login() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/25">
-              <ParkingSquare size={22} className="text-white" />
+            <div className="bg-white rounded-xl px-3 py-2 shadow-lg shadow-black/10">
+              <img src="/AIParking.jpg" alt="AI Parking" className="h-9 w-auto object-contain" />
             </div>
-            <span className="text-lg font-bold text-white">AI Parking</span>
           </div>
 
           <h2 className="text-3xl font-bold text-white leading-snug mb-4">
@@ -63,10 +62,7 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-[380px]">
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
-              <ParkingSquare size={20} className="text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">AI Parking</span>
+            <img src="/AIParking.jpg" alt="AI Parking" className="h-9 w-auto object-contain" />
           </div>
 
           <h2 className="text-2xl font-bold text-slate-900 mb-1">Welcome back</h2>
