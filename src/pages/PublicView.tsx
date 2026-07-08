@@ -319,16 +319,12 @@ function hourLabelFull(h: number): string {
 /** Client-side fallback for the AI Parking report — mirrors the backend's
  *  build_parking_report so the chart/stats render even if the API omits `report`. */
 function computeParkingReport(scans: ParkingScan[]): ParkingReport {
-  const valid = scans.filter((s) => {
-    if (!s.recorded_at) return false;
-    const d = new Date(s.recorded_at);
-    return d.getMinutes() % 5 === 0;
-  });
   const hourly: ParkingReport["hourly"] = [];
   for (let h = 10; h <= 18; h++) {
     let best: ParkingScan | null = null;
     let bestOcc = -1;
-    for (const s of valid) {
+    for (const s of scans) {
+      if (!s.recorded_at) continue;
       const d = new Date(s.recorded_at);
       if (d.getHours() === h) {
         const occ = s.car_occupied + s.two_wheeler_occupied;
