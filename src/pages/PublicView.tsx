@@ -319,15 +319,21 @@ function hourLabelFull(h: number): string {
 /** Client-side fallback for the AI Parking report — mirrors the backend's
  *  build_parking_report so the chart/stats render even if the API omits `report`. */
 function computeParkingReport(scans: ParkingScan[]): ParkingReport {
+  const valid = scans.filter((s) => {
+    if (!s.recorded_at) return false;
+    const d = new Date(s.recorded_at);
+    return d.getMinutes() % 5 === 0;
+  });
   const hourly: ParkingReport["hourly"] = [];
   for (let h = 10; h <= 18; h++) {
     let best: ParkingScan | null = null;
-    let bestDiff = Infinity;
-    for (const s of scans) {
-      if (!s.recorded_at) continue;
+    let bestOcc = -1;
+    for (const s of valid) {
       const d = new Date(s.recorded_at);
-      const diff = Math.abs((d.getHours() * 60 + d.getMinutes()) - h * 60);
-      if (diff < bestDiff && diff <= 30) { bestDiff = diff; best = s; }
+      if (d.getHours() === h) {
+        const occ = s.car_occupied + s.two_wheeler_occupied;
+        if (occ > bestOcc) { bestOcc = occ; best = s; }
+      }
     }
     hourly.push({
       hour: h,
@@ -337,28 +343,37 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
       tot_bike: best?.two_wheeler_total ?? 0,
     });
   }
-  const hourlyOcc: Record<number, number> = {};
-  hourly.forEach((d) => { hourlyOcc[d.hour] = d.occ_car + d.occ_bike; });
-  let peakVal = 0, peakHour = -1;
-  for (const [h, v] of Object.entries(hourlyOcc)) { if (v > peakVal) { peakVal = v; peakHour = Number(h); } }
+  const hourlyCar: Record<number, number> = {};
+  const hourlyBike: Record<number, number> = {};
+  hourly.forEach((d) => { hourlyCar[d.hour] = d.occ_car; hourlyBike[d.hour] = d.occ_bike; });
+
+  const findPeak = (obj: Record<number, number>) => {
+    let pv = 0, ph = -1;
+    for (const [h, v] of Object.entries(obj)) { if (v > pv) { pv = v; ph = Number(h); } }
+    return { label: pv > 0 ? hourLabelFull(ph) : "-", count: pv };
+  };
+  const peakCar = findPeak(hourlyCar);
+  const peakBike = findPeak(hourlyBike);
 
   const allCar: number[] = [], all2w: number[] = [];
   let maxCars = 0, max2w = 0, peakPct = 0;
-  for (const s of scans) {
-    const carPct = s.car_total > 0 ? Math.round((s.car_occupied / s.car_total) * 100) : 0;
-    const bikePct = s.two_wheeler_total > 0 ? Math.round((s.two_wheeler_occupied / s.two_wheeler_total) * 100) : 0;
+  for (const r of hourly) {
+    const carPct = r.tot_car > 0 ? Math.round((r.occ_car / r.tot_car) * 100) : 0;
+    const bikePct = r.tot_bike > 0 ? Math.round((r.occ_bike / r.tot_bike) * 100) : 0;
     peakPct = Math.max(peakPct, carPct, bikePct);
-    maxCars = Math.max(maxCars, s.car_occupied);
-    max2w = Math.max(max2w, s.two_wheeler_occupied);
-    if (s.car_total > 0) allCar.push(carPct);
-    if (s.two_wheeler_total > 0) all2w.push(bikePct);
+    maxCars = Math.max(maxCars, r.occ_car);
+    max2w = Math.max(max2w, r.occ_bike);
+    if (r.tot_car > 0) allCar.push(carPct);
+    if (r.tot_bike > 0) all2w.push(bikePct);
   }
   const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
   return {
     hourly,
     stats: {
-      peak_hour_label: peakVal > 0 ? hourLabelFull(peakHour) : "-",
-      peak_hour_count: peakVal,
+      peak_hour_car_label: peakCar.label,
+      peak_hour_car_count: peakCar.count,
+      peak_hour_2w_label: peakBike.label,
+      peak_hour_2w_count: peakBike.count,
       peak_occupancy_pct: peakPct,
       avg_car_occ: avg(allCar),
       avg_2w_occ: avg(all2w),
@@ -405,7 +420,8 @@ function HourlyOccupancyChart({ hourly }: { hourly: ParkingReport["hourly"] }) {
 
 function OccupancySummaryStats({ stats }: { stats: ParkingReport["stats"] }) {
   const tiles = [
-    { label: "Peak Hour", value: stats.peak_hour_label, sub: stats.peak_hour_count ? `${stats.peak_hour_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+    { label: "Peak Hour Car", value: stats.peak_hour_car_label, sub: stats.peak_hour_car_count ? `${stats.peak_hour_car_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+    { label: "Peak Hour 2W", value: stats.peak_hour_2w_label, sub: stats.peak_hour_2w_count ? `${stats.peak_hour_2w_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
     { label: "Peak Occupancy Car", value: `${stats.peak_occupancy_pct}%`, border: stats.peak_occupancy_pct >= 100 ? "border-red-300" : "border-violet-200", bg: stats.peak_occupancy_pct >= 100 ? "bg-red-50" : "bg-violet-50", text: stats.peak_occupancy_pct >= 100 ? "text-red-600" : "text-violet-700" },
     { label: "Avg Car Occ", value: `${stats.avg_car_occ}%`, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
     { label: "Avg 2W Occ", value: `${stats.avg_2w_occ}%`, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
