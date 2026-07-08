@@ -343,17 +343,11 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
       tot_bike: best?.two_wheeler_total ?? 0,
     });
   }
-  const hourlyCar: Record<number, number> = {};
-  const hourlyBike: Record<number, number> = {};
-  hourly.forEach((d) => { hourlyCar[d.hour] = d.occ_car; hourlyBike[d.hour] = d.occ_bike; });
-
-  const findPeak = (obj: Record<number, number>) => {
-    let pv = 0, ph = -1;
-    for (const [h, v] of Object.entries(obj)) { if (v > pv) { pv = v; ph = Number(h); } }
-    return { label: pv > 0 ? hourLabelFull(ph) : "-", count: pv };
-  };
-  const peakCar = findPeak(hourlyCar);
-  const peakBike = findPeak(hourlyBike);
+  const hourlyOcc: Record<number, number> = {};
+  hourly.forEach((d) => { hourlyOcc[d.hour] = d.occ_car + d.occ_bike; });
+  let peakVal = 0, peakHour = -1;
+  for (const [h, v] of Object.entries(hourlyOcc)) { if (v > peakVal) { peakVal = v; peakHour = Number(h); } }
+  const peakData = hourly.find((d) => d.hour === peakHour);
 
   const allCar: number[] = [], all2w: number[] = [];
   let maxCars = 0, max2w = 0, peakPct = 0;
@@ -370,10 +364,10 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
   return {
     hourly,
     stats: {
-      peak_hour_car_label: peakCar.label,
-      peak_hour_car_count: peakCar.count,
-      peak_hour_2w_label: peakBike.label,
-      peak_hour_2w_count: peakBike.count,
+      peak_hour_label: peakVal > 0 ? hourLabelFull(peakHour) : "-",
+      peak_hour_count: peakVal,
+      peak_hour_car: peakData?.occ_car ?? 0,
+      peak_hour_2w: peakData?.occ_bike ?? 0,
       peak_occupancy_pct: peakPct,
       avg_car_occ: avg(allCar),
       avg_2w_occ: avg(all2w),
