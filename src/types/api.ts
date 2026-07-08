@@ -510,10 +510,10 @@ export interface ParkingHourlyBucket {
 export interface ParkingReport {
   hourly: ParkingHourlyBucket[];
   stats: {
-    peak_hour_car_label: string;
-    peak_hour_car_count: number;
-    peak_hour_2w_label: string;
-    peak_hour_2w_count: number;
+    peak_hour_label: string;
+    peak_hour_count: number;
+    peak_hour_car: number;
+    peak_hour_2w: number;
     peak_occupancy_pct: number;
     avg_car_occ: number;
     avg_2w_occ: number;

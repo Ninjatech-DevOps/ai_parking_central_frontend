@@ -419,9 +419,11 @@ function HourlyOccupancyChart({ hourly }: { hourly: ParkingReport["hourly"] }) {
 }
 
 function OccupancySummaryStats({ stats }: { stats: ParkingReport["stats"] }) {
+  const peakSub = stats.peak_hour_count
+    ? `${stats.peak_hour_count} occupied (${stats.peak_hour_car} car, ${stats.peak_hour_2w} 2W)`
+    : undefined;
   const tiles = [
-    { label: "Peak Hour Car", value: stats.peak_hour_car_label, sub: stats.peak_hour_car_count ? `${stats.peak_hour_car_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
-    { label: "Peak Hour 2W", value: stats.peak_hour_2w_label, sub: stats.peak_hour_2w_count ? `${stats.peak_hour_2w_count} occupied` : undefined, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+    { label: "Peak Hour", value: stats.peak_hour_label, sub: peakSub, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
     { label: "Peak Occupancy Car", value: `${stats.peak_occupancy_pct}%`, border: stats.peak_occupancy_pct >= 100 ? "border-red-300" : "border-violet-200", bg: stats.peak_occupancy_pct >= 100 ? "bg-red-50" : "bg-violet-50", text: stats.peak_occupancy_pct >= 100 ? "text-red-600" : "text-violet-700" },
     { label: "Avg Car Occ", value: `${stats.avg_car_occ}%`, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
     { label: "Avg 2W Occ", value: `${stats.avg_2w_occ}%`, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
