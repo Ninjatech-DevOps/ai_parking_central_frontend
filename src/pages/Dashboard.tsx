@@ -5,12 +5,11 @@ import { useFilter } from "@/contexts/FilterContext";
 import { devicesApi, locationsApi, camerasApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
-import AnprDashboard from "@/pages/AnprDashboard";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
 import {
   MapPin, ParkingSquare,
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
-  Eye, Image as ImageIcon, Loader2, ScanLine,
+  Eye, Image as ImageIcon, Loader2,
 } from "lucide-react";
 import type { Device, Location, CanvasResponse, CanvasCamera } from "@/types/api";
 
@@ -20,12 +19,15 @@ function getGreeting() {
 }
 const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 
+// Locations whose cameras are hidden from the AI Parking "Camera Overview" table
+// (e.g. ANPR-only entry/exit gates that don't have parking slots).
+const HIDDEN_CAMERA_LOCATIONS = ["Prahaladnagar MLP"];
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { filterLabel, deviceQueryParams, queryParams, locationId, areaId, areas } = useFilter();
 
-  const [activeTab, setActiveTab] = useState<"parking" | "anpr">("parking");
   const [devices, setDevices] = useState<Device[]>([]);
   const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,7 +104,10 @@ export default function Dashboard() {
       const occ2w = cam.slots.reduce((s, sl) => s + (sl.occupied_two_wheeler || 0), 0);
       return { cam, locName: loc.location_name, locId: loc.location_id, total, available, occupied, obstructed, mismatched, capCar, cap2w, occCar, occ2w };
     })
-  );
+  ).filter((r) => !HIDDEN_CAMERA_LOCATIONS.includes(r.locName));
+
+  // Locations shown in the "Parking Locations" section (hidden ANPR-only locations excluded).
+  const visibleLocations = locationsList.filter((l) => !HIDDEN_CAMERA_LOCATIONS.includes(l.name));
 
   async function handleSnapshot(cam: CanvasCamera, locName: string) {
     setSnapshotCam({ cam, locName });
@@ -135,29 +140,6 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 bg-white rounded-xl card-shadow p-1 w-fit">
-        <button
-          onClick={() => setActiveTab("parking")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-            activeTab === "parking" ? "bg-teal-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
-          }`}
-        >
-          <ParkingSquare size={14} /> AI Parking
-        </button>
-        <button
-          onClick={() => setActiveTab("anpr")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-            activeTab === "anpr" ? "bg-teal-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
-          }`}
-        >
-          <ScanLine size={14} /> ANPR
-        </button>
-      </div>
-
-      {activeTab === "anpr" ? (
-        <AnprDashboard />
-      ) : (
       <>
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 mb-8">
@@ -321,11 +303,11 @@ export default function Dashboard() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h2 className="text-[16px] font-bold text-slate-900">Parking Locations</h2>
-            <p className="text-[12px] text-slate-400 mt-0.5">{locationsList.length} locations</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{visibleLocations.length} locations</p>
           </div>
           <button onClick={() => navigate("/parking-lots")} className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1">Manage <Eye size={11} /></button>
         </div>
-        {locationsList.length === 0 ? (
+        {visibleLocations.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
               <MapPin size={24} className="text-slate-300" />
@@ -337,10 +319,10 @@ export default function Dashboard() {
             {/* Summary row */}
             <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
               {[
-                { label: "Total Locations", value: locationsList.length, color: "text-slate-700" },
-                { label: "Active", value: locationsList.filter((l) => l.is_active).length, color: "text-emerald-600" },
-                { label: "Inactive", value: locationsList.filter((l) => !l.is_active).length, color: "text-red-500" },
-                { label: "Total Capacity", value: locationsList.reduce((s, l) => s + (l.total_capacity || 0), 0), color: "text-violet-600" },
+                { label: "Total Locations", value: visibleLocations.length, color: "text-slate-700" },
+                { label: "Active", value: visibleLocations.filter((l) => l.is_active).length, color: "text-emerald-600" },
+                { label: "Inactive", value: visibleLocations.filter((l) => !l.is_active).length, color: "text-red-500" },
+                { label: "Total Capacity", value: visibleLocations.reduce((s, l) => s + (l.total_capacity || 0), 0), color: "text-violet-600" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center">
                   <p className={`text-[22px] font-extrabold ${color}`}>{value}</p>
@@ -362,7 +344,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {locationsList.map((loc, idx) => (
+                  {visibleLocations.map((loc, idx) => (
                     <tr key={loc.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -496,7 +478,6 @@ export default function Dashboard() {
         )}
       </CrudDialog>
       </>
-      )}
     </div>
   );
 }
