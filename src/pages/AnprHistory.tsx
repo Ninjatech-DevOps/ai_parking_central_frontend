@@ -6,7 +6,7 @@ import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
   Car, Bike, Download, FileSpreadsheet, FileText,
-  X, Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine,
+  X, Loader2, Image as ImageIcon, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ArrowUpDown,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { AnprSession, AnprReport } from "@/types/api";
@@ -112,6 +112,14 @@ function formatTime(iso: string) {
 
 const PAGE_SIZE = 20;
 
+// Sort options → /anpr-sessions ?sort_by=&sort_order= (default: out time, newest first).
+const SORT_OPTIONS = [
+  { key: "out_new", label: "Out time — Newest first", sort_by: "out_time", sort_order: "desc" },
+  { key: "out_old", label: "Out time — Oldest first", sort_by: "out_time", sort_order: "asc" },
+  { key: "in_new", label: "In time — Newest first", sort_by: "in_time", sort_order: "desc" },
+  { key: "in_old", label: "In time — Oldest first", sort_by: "in_time", sort_order: "asc" },
+] as const;
+
 export default function AnprHistory() {
   const { areaId, locationId } = useFilter();
   const [sessions, setSessions] = useState<AnprSession[]>([]);
@@ -136,6 +144,7 @@ export default function AnprHistory() {
   const [datePreset, setDatePreset] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [sortKey, setSortKey] = useState<string>("out_new");
   // Draft (committed on Apply Filters)
   const [draftPreset, setDraftPreset] = useState("today");
   const [draftFrom, setDraftFrom] = useState("");
@@ -191,6 +200,11 @@ export default function AnprHistory() {
     if (locationId) p.set("location_id", locationId);
     else if (areaId) p.set("area_id", areaId);
 
+    // Sort (default: out time, newest first)
+    const sort = SORT_OPTIONS.find((o) => o.key === sortKey) ?? SORT_OPTIONS[0];
+    p.set("sort_by", sort.sort_by);
+    p.set("sort_order", sort.sort_order);
+
     return p.toString();
   }
 
@@ -235,7 +249,7 @@ export default function AnprHistory() {
       setErrored(true);
       setLoading(false);
     }
-  }, [page, plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId]);
+  }, [page, plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId, sortKey]);
 
   usePolling(fetchData, 15000);
 
@@ -246,8 +260,8 @@ export default function AnprHistory() {
     return () => { if (retryRef.current) clearTimeout(retryRef.current); };
   }, [errored, fetchData]);
 
-  // Reset page on filter change
-  useEffect(() => { setPage(1); }, [plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId]);
+  // Reset page on filter / sort change
+  useEffect(() => { setPage(1); }, [plateSearch, vehicleType, statusFilter, datePreset, customFrom, customTo, areaId, locationId, sortKey]);
 
   function openFilters() {
     setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo); setDraftType(vehicleType); setDraftStatus(statusFilter);
@@ -334,7 +348,23 @@ export default function AnprHistory() {
         searchPlaceholder="Search number plate..."
         filterCount={activeFilterCount}
         onOpen={openFilters}
-      />
+      >
+        {/* Sort selector */}
+        <div className="relative">
+          <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+            title="Sort sessions"
+            className="appearance-none h-10 pl-9 pr-9 rounded-xl border border-slate-200 bg-white card-shadow text-[13px] font-semibold text-slate-600 hover:border-teal-300 focus:outline-none focus:border-teal-300 cursor-pointer"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+      </FilterToolbar>
 
       {/* Inline Filter panel */}
       <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearFilters}>
