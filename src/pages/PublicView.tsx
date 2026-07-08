@@ -345,8 +345,8 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
   const allCar: number[] = [], all2w: number[] = [];
   let maxCars = 0, max2w = 0, peakPct = 0;
   for (const s of scans) {
-    const carPct = s.car_total > 0 ? Math.round((s.car_occupied / s.car_total) * 100) : 0;
-    const bikePct = s.two_wheeler_total > 0 ? Math.round((s.two_wheeler_occupied / s.two_wheeler_total) * 100) : 0;
+    const carPct = s.car_total > 0 ? Math.min(100, Math.round((s.car_occupied / s.car_total) * 100)) : 0;
+    const bikePct = s.two_wheeler_total > 0 ? Math.min(100, Math.round((s.two_wheeler_occupied / s.two_wheeler_total) * 100)) : 0;
     peakPct = Math.max(peakPct, carPct, bikePct);
     maxCars = Math.max(maxCars, s.car_occupied);
     max2w = Math.max(max2w, s.two_wheeler_occupied);
@@ -555,7 +555,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
                 { label: "Total cars", value: summary.car_total, border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700" },
                 { label: "Occupied", value: summary.car_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.car_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
-                { label: "Occupancy", value: `${summary.car_total > 0 ? Math.round((summary.car_occupied / summary.car_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+                { label: "Occupancy", value: `${summary.car_total > 0 ? Math.min(100, Math.round((summary.car_occupied / summary.car_total) * 100)) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
@@ -571,7 +571,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
                 { label: "Total 2W", value: summary.two_wheeler_total, border: "border-indigo-200", bg: "bg-indigo-50", text: "text-indigo-700" },
                 { label: "Occupied", value: summary.two_wheeler_occupied, border: "border-red-200", bg: "bg-red-50", text: "text-red-500" },
                 { label: "Available", value: summary.two_wheeler_available, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
-                { label: "Occupancy", value: `${summary.two_wheeler_total > 0 ? Math.round((summary.two_wheeler_occupied / summary.two_wheeler_total) * 100) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+                { label: "Occupancy", value: `${summary.two_wheeler_total > 0 ? Math.min(100, Math.round((summary.two_wheeler_occupied / summary.two_wheeler_total) * 100)) : 0}%`, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
               ].map(({ label, value, border, bg, text }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
                   <p className="text-[11px] font-semibold text-slate-500 mb-1">{label}</p>
