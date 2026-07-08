@@ -309,7 +309,7 @@ export default function AnprHistory() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-[22px] font-bold text-slate-900">ANPR History</h1>
+            <h1 className="text-[22px] font-bold text-slate-900">Prahaladnagar MLP History</h1>
             {isLive && <LiveBadge />}
           </div>
           <p className="text-[13px] text-slate-400 mt-0.5">Vehicle entry/exit sessions via number plate recognition</p>

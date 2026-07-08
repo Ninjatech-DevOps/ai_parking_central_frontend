@@ -216,10 +216,10 @@ export default function AnprRecords() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight">ANPR Records</h1>
+            <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight">Prahaladnagar MLP Records</h1>
             {datePreset === "today" && !customFrom && !customTo && <LiveBadge />}
           </div>
-          <p className="text-[13px] text-slate-400 mt-0.5">All vehicle detections received from ANPR devices</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">All vehicle detections received from Prahaladnagar MLP devices</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => handleExport("csv")} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-[12px] font-semibold hover:border-teal-300 hover:text-teal-700 transition-colors card-shadow">

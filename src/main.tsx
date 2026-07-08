@@ -17,6 +17,7 @@ import Roles from "@/pages/Roles";
 import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
 import ParkingHistory from "@/pages/ParkingScanHistory";
+import LocationParkingHistory from "@/pages/LocationParkingHistory";
 import AnprHistory from "@/pages/AnprHistory";
 import AnprRecords from "@/pages/AnprRecords";
 import SharedLinks from "@/pages/SharedLinks";
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/ota-updates" element={<OTAUpdates />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/parking-history" element={<ParkingHistory />} />
+        <Route path="/parking-history/location/:id" element={<LocationParkingHistory />} />
         <Route path="/anpr-history" element={<AnprHistory />} />
         <Route path="/anpr-records" element={<AnprRecords />} />
         <Route path="/users" element={<Users />} />

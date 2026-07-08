@@ -11,10 +11,10 @@ import { Skel } from "@/components/Skeleton";
 
 const PAGE_LABELS: Record<string, string> = {
   dashboard_parking: "AI Parking",
-  dashboard_anpr: "ANPR Dashboard",
+  dashboard_anpr: "Prahaladnagar MLP Dashboard",
   parking_history: "AI Parking History",
-  anpr_records: "ANPR Records",
-  anpr_history: "ANPR History",
+  anpr_records: "Prahaladnagar MLP Records",
+  anpr_history: "Prahaladnagar MLP History",
 };
 
 function formatDate(iso: string) {
@@ -194,7 +194,7 @@ function DashboardParkingTab({ data }: { data: PublicViewResponse }) {
                       <div className="flex" style={{ height: "calc(100vh - 180px)", maxHeight: 600 }}>
                         <div className="w-4/5 bg-slate-900 relative flex items-center justify-center">
                           {(() => {
-                            const imgSrc = showDebug ? (cam.debug_frame_url || cam.clean_frame_url) : (cam.clean_frame_url || cam.debug_frame_url);
+                            const imgSrc = showDebug ? (cam.debug_frame_url || cam.clean_frame_url) : (cam.latest_frame_url || cam.clean_frame_url || cam.debug_frame_url);
                             return imgSrc ? <img src={`${imgSrc}?t=${Date.now()}`} alt={cam.position_label} className="w-full h-full object-contain" /> : <p className="text-slate-500 text-[12px]">No image available</p>;
                           })()}
                           <button onClick={() => setShowDebug((v) => !v)} className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${showDebug ? "bg-amber-500 text-white" : "bg-white/80 text-slate-600 hover:bg-white"}`}>
@@ -837,7 +837,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
         {/* Header: title + updated badge */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[22px] font-extrabold text-slate-900">ANPR Sessions Report</h1>
+            <h1 className="text-[22px] font-extrabold text-slate-900">Prahaladnagar MLP Sessions Report</h1>
           </div>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -929,7 +929,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
               </tr></thead>
               <tbody>
                 {sessions.length === 0 && !loading ? (
-                  <tr><td colSpan={8} className="text-center py-20 text-slate-400"><div className="flex flex-col items-center"><div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3"><Car size={24} className="text-slate-300" /></div><p className="text-[14px] font-semibold">No ANPR sessions found</p><p className="text-[12px] text-slate-400 mt-0.5">Adjust your filters or date range</p></div></td></tr>
+                  <tr><td colSpan={8} className="text-center py-20 text-slate-400"><div className="flex flex-col items-center"><div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3"><Car size={24} className="text-slate-300" /></div><p className="text-[14px] font-semibold">No Prahaladnagar MLP sessions found</p><p className="text-[12px] text-slate-400 mt-0.5">Adjust your filters or date range</p></div></td></tr>
                 ) : sessions.map((s, idx) => (
                   <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                     {f("image") && <td className="px-6 py-3">{s.entry_image_url ? <button onClick={() => setPreviewImg(s.entry_image_url)} className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"><img src={s.entry_image_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} /></button> : <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={16} className="text-slate-300" /></div>}</td>}
@@ -1019,9 +1019,7 @@ export default function PublicView() {
       <header className="bg-white border-b border-slate-100 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center shadow-md shadow-teal-600/20">
-              <ParkingSquare size={16} className="text-white" />
-            </div>
+            <img src="/AIParking.jpg" alt="AI Parking" className="h-9 w-auto object-contain" />
             <div>
               <h1 className="text-[14px] font-bold text-slate-900 tracking-tight leading-none">{data.name || "Parking View"}</h1>
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-[0.1em] mt-0.5">Live Status</p>

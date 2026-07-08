@@ -44,18 +44,6 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="relative z-10 flex gap-8">
-          {[
-            { n: "844+", l: "Devices" },
-            { n: "33", l: "Districts" },
-            { n: "24/7", l: "Monitoring" },
-          ].map((s) => (
-            <div key={s.l}>
-              <p className="text-2xl font-bold text-white">{s.n}</p>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">{s.l}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Right form */}

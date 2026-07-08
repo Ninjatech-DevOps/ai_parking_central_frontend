@@ -1,8 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Monitor, Bell, Users, Settings,
-  ChevronRight, Building2, Globe, FileDown, History, ShieldCheck, Link2, Download,
+  LayoutDashboard, Monitor, Users, Settings,
+  ChevronRight, Building2, Globe, ShieldCheck,
   ScanLine, Car,
 } from "lucide-react";
 
@@ -25,8 +25,8 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/parking-history", label: "Parking History", icon: Car, permissions: ["slots:view"] },
-      { to: "/anpr-history", label: "ANPR History", icon: ScanLine, permissions: ["anpr:view"] },
-      { to: "/anpr-records", label: "ANPR Records", icon: ScanLine, permissions: ["anpr:view"] },
+      { to: "/anpr-history", label: "Prahaladnagar MLP History", icon: ScanLine, permissions: ["anpr:view"] },
+      // { to: "/anpr-records", label: "Prahaladnagar MLP Records", icon: ScanLine, permissions: ["anpr:view"] }, // hidden
     ],
   },
   {
@@ -39,15 +39,15 @@ const sections: SectionConfig[] = [
     label: "Device Mgmt",
     items: [
       { to: "/devices", label: "Devices", icon: Monitor, permissions: ["devices:view"] },
-      { to: "/ota-updates", label: "OTA Updates", icon: Download, permissions: ["devices:update"] },
+      // { to: "/ota-updates", label: "OTA Updates", icon: Download, permissions: ["devices:update"] }, // hidden
     ],
   },
   {
     label: "Monitoring",
     items: [
-      { to: "/alerts", label: "Alerts", icon: Bell, permissions: ["alerts:view"] },
-      { to: "/reports", label: "Reports", icon: FileDown, permissions: ["reports:view"] },
-      { to: "/demo-report", label: "Demo Report", icon: Download, permissions: ["reports:view"] },
+      // { to: "/alerts", label: "Alerts", icon: Bell, permissions: ["alerts:view"] }, // hidden
+      // { to: "/reports", label: "Reports", icon: FileDown, permissions: ["reports:view"] }, // hidden
+      // { to: "/demo-report", label: "Demo Report", icon: Download, permissions: ["reports:view"] }, // hidden
     ],
   },
   {
@@ -61,7 +61,7 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/users", label: "Users", icon: Users, permissions: ["users:view"] },
       { to: "/roles", label: "Roles", icon: ShieldCheck, permissions: ["roles:view", "roles:manage"] },
-      { to: "/shared-links", label: "Shared Links", icon: Link2 },
+      // { to: "/shared-links", label: "Shared Links", icon: Link2 }, // hidden
     ],
   },
 ];

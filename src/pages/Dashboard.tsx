@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilter } from "@/contexts/FilterContext";
-import { devicesApi, locationsApi, camerasApi } from "@/services/api";
+import { devicesApi, locationsApi, sharedLinksApi, anprSessionsApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
@@ -11,7 +11,7 @@ import {
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
   Eye, Image as ImageIcon, Loader2,
 } from "lucide-react";
-import type { Device, Location, CanvasResponse, CanvasCamera } from "@/types/api";
+import type { Device, Location, CanvasResponse, CanvasCamera, SharedLink, AnprReport } from "@/types/api";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -28,10 +28,41 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { filterLabel, deviceQueryParams, queryParams, locationId, areaId, areas } = useFilter();
 
+  // Clicking a location opens *that location's own* public share link in a new tab.
+  // LOCATION-scoped links store their location id(s) in `camera_ids` (see SharedLinks
+  // page create logic). We match by id first (robust to array / JSON / CSV shapes,
+  // and scope_id), then fall back to matching the link name to the location name.
+  // If nothing matches, fall back to the internal single-location Parking History page.
+  async function openLocationHistory(locId: string, locName?: string) {
+    try {
+      const { data } = await sharedLinksApi.list("is_active=true&page_size=500");
+      const links = (data.items || []).filter((l) => l.is_active && l.scope_type === "LOCATION");
+      const parseIds = (l: SharedLink): string[] => {
+        const raw = l.camera_ids as unknown;
+        if (Array.isArray(raw)) return raw as string[];
+        const s = String(raw || "").trim();
+        if (s.startsWith("[")) { try { return JSON.parse(s) as string[]; } catch { /* not JSON */ } }
+        return s.split(",").map((x) => x.trim()).filter(Boolean);
+      };
+      const norm = (v?: string | null) => (v || "").trim().toLowerCase();
+      const link =
+        links.find((l) => parseIds(l).includes(locId) || l.scope_id === locId) ||
+        (locName ? links.find((l) => norm(l.name) === norm(locName)) : undefined);
+      if (link?.token) {
+        window.open(`${window.location.origin}/view/${link.token}`, "_blank", "noopener,noreferrer");
+        return;
+      }
+    } catch { /* fall through to the internal page */ }
+    navigate(`/parking-history/location/${locId}`);
+  }
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
+  // ANPR (Prahaladnagar MLP) aggregate — 2nd data source for the Camera Overview.
+  const [anprReport, setAnprReport] = useState<AnprReport | null>(null);
+  const [mlpLocation, setMlpLocation] = useState<Location | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Snapshot dialog state
@@ -69,6 +100,17 @@ export default function Dashboard() {
       // Only show locations that have AI Parking canvas data (cameras with slots)
       const canvasLocationIds = new Set(validCanvases.map((c) => c.location_id));
       setLocationsList(locationsForCanvas.filter((loc) => canvasLocationIds.has(loc.id)));
+
+      // 2nd Camera-Overview data source: the ANPR (Prahaladnagar MLP) aggregate,
+      // using the same "today" window as the MLP History cards so the counts match.
+      setMlpLocation((l.data.items || []).find((loc) => HIDDEN_CAMERA_LOCATIONS.includes(loc.name)) || null);
+      const now = new Date();
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const reportParams = `start_date=${dayStart.toISOString()}&end_date=${new Date(dayStart.getTime() + 86400000).toISOString()}`;
+      try {
+        const { data: report } = await anprSessionsApi.report(reportParams);
+        setAnprReport(report);
+      } catch { setAnprReport(null); }
     } finally {
       setLoading(false);
     }
@@ -109,20 +151,45 @@ export default function Dashboard() {
   // Locations shown in the "Parking Locations" section (hidden ANPR-only locations excluded).
   const visibleLocations = locationsList.filter((l) => !HIDDEN_CAMERA_LOCATIONS.includes(l.name));
 
-  async function handleSnapshot(cam: CanvasCamera, locName: string) {
-    setSnapshotCam({ cam, locName });
-    setSnapshotUrl(null);
-    setSnapshotLoading(true);
-    try {
-      const url = await camerasApi.snapshotBlobUrl(cam.id);
-      setSnapshotUrl(url);
-    } catch {
-      setSnapshotUrl(null);
-    }
-    setSnapshotLoading(false);
-  }
+  // ANPR (Prahaladnagar MLP) aggregate row for the Camera Overview + Parking Locations.
+  const mlp = anprReport
+    ? {
+        name: mlpLocation?.name || HIDDEN_CAMERA_LOCATIONS[0],
+        locId: mlpLocation?.id,
+        type: mlpLocation?.location_type || "Commercial",
+        areaName: areas.find((a) => a.id === mlpLocation?.area_id)?.name || "—",
+        car: anprReport.summary.car,
+        bike: anprReport.summary.bike,
+        occupancyPct: anprReport.summary.occupancy_pct,
+        capacity: anprReport.summary.car.total + anprReport.summary.bike.total,
+      }
+    : null;
 
-  if (loading && canvasData.length === 0 && locationsList.length === 0) return <DashboardSkeleton />;
+  // ANPR (Prahaladnagar MLP) occupancy = IN − OUT (vehicles still inside).
+  // Available / Total come straight from the ANPR report.
+  const anprCarOcc = mlp ? Math.max(0, mlp.car.in - mlp.car.out) : 0;
+  const anpr2wOcc = mlp ? Math.max(0, mlp.bike.in - mlp.bike.out) : 0;
+  const anprCarAvail = mlp ? mlp.car.available : 0;
+  const anpr2wAvail = mlp ? mlp.bike.available : 0;
+  const anprCarTotal = mlp ? mlp.car.total : 0;
+  const anpr2wTotal = mlp ? mlp.bike.total : 0;
+
+  // KPI cards / Totals row = AI Parking (slots) + ANPR/MLP (IN−OUT) combined.
+  const kpiCarOcc = occCar + anprCarOcc;
+  const kpiCarAvail = availCar + anprCarAvail;
+  const kpiCarTotal = totalCapCar + anprCarTotal;
+  const kpi2wOcc = occ2w + anpr2wOcc;
+  const kpi2wAvail = avail2w + anpr2wAvail;
+  const kpi2wTotal = totalCap2w + anpr2wTotal;
+  const kpiOccupied = slotsOccupied + anprCarOcc + anpr2wOcc;
+  const kpiAvailable = slotsAvailable + anprCarAvail + anpr2wAvail;
+  const kpiTotalCapacity = totalSlots + anprCarTotal + anpr2wTotal;
+
+
+  // `loading` is true only during the first fetch (refreshes use `refreshing`), so this
+  // keeps the skeleton up for the whole initial load — including while canvas data is still
+  // arriving after the locations list has been populated.
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="w-full">
@@ -145,15 +212,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 mb-8">
         <StatCard label="Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
         <StatCard label="Cameras" value={totalCameras} icon={Camera} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="Occupied" value={slotsOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
-        <StatCard label="Available" value={slotsAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
-        <StatCard label="Total Capacity" value={totalSlots} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
-        <StatCard label="Car Occupied" value={occCar} icon={Car} bg="bg-red-50" text="text-red-500" />
-        <StatCard label="Car Available" value={availCar} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
-        <StatCard label="Car Total" value={totalCapCar} icon={Car} bg="bg-blue-50" text="text-blue-600" />
-        <StatCard label="2W Occupied" value={occ2w} icon={Bike} bg="bg-red-50" text="text-red-500" />
-        <StatCard label="2W Available" value={avail2w} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
-        <StatCard label="2W Total" value={totalCap2w} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
+        <StatCard label="Occupied" value={kpiOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Available" value={kpiAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Total Capacity" value={kpiTotalCapacity} icon={ParkingSquare} bg="bg-slate-100" text="text-slate-600" />
+        <StatCard label="Car Occupied" value={kpiCarOcc} icon={Car} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="Car Available" value={kpiCarAvail} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="Car Total" value={kpiCarTotal} icon={Car} bg="bg-blue-50" text="text-blue-600" />
+        <StatCard label="2W Occupied" value={kpi2wOcc} icon={Bike} bg="bg-red-50" text="text-red-500" />
+        <StatCard label="2W Available" value={kpi2wAvail} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
+        <StatCard label="2W Total" value={kpi2wTotal} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
         <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
 
@@ -165,7 +232,7 @@ export default function Dashboard() {
             <p className="text-[12px] text-slate-400 mt-0.5">{cameraRows.length} cameras across {canvasData.length} locations</p>
           </div>
         </div>
-        {cameraRows.length === 0 ? (
+        {cameraRows.length === 0 && !mlp ? (
           <div className="flex flex-col items-center py-20 text-slate-400">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
               <Camera size={24} className="text-slate-300" />
@@ -192,16 +259,18 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {cameraRows.map(({ cam, locName, total, available, occupied, obstructed, capCar, cap2w, occCar, occ2w }, idx) => {
+                {cameraRows.map(({ cam, locName, locId, total, available, occupied, obstructed, capCar, cap2w, occCar, occ2w }, idx) => {
                   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
+                  // Prefer the clean latest frame (ROI only, no vehicle boxes).
+                  const frameUrl = cam.latest_frame_url || cam.clean_frame_url || cam.debug_frame_url;
                   return (
                     <tr key={cam.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
+                        <div onClick={() => openLocationHistory(locId, locName)} title={`View ${locName} parking history`} className="flex items-center gap-3 cursor-pointer group w-fit">
                           <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
                             <MapPin size={16} className="text-violet-500" />
                           </div>
-                          <span className="text-[14px] font-semibold text-slate-800">{locName}</span>
+                          <span className="text-[14px] font-semibold text-slate-800 group-hover:text-teal-600 transition-colors">{locName}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -251,18 +320,20 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {/* Latest-image button — hidden for now (only the view icon is shown)
                           <button
-                            onClick={() => { setSnapshotCam({ cam, locName }); setSnapshotUrl(cam.debug_frame_url); setSnapshotLoading(false); }}
+                            onClick={(e) => { e.stopPropagation(); setSnapshotCam({ cam, locName }); setSnapshotUrl(frameUrl ? `${frameUrl}${frameUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null); setSnapshotLoading(false); }}
                             title="Latest image"
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors group ${cam.debug_frame_url ? "bg-teal-50 hover:bg-teal-100" : "bg-slate-50 cursor-not-allowed"}`}
-                            disabled={!cam.debug_frame_url}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors group ${frameUrl ? "bg-teal-50 hover:bg-teal-100" : "bg-slate-50 cursor-not-allowed"}`}
+                            disabled={!frameUrl}
                           >
-                            <ImageIcon size={15} className={cam.debug_frame_url ? "text-teal-600 group-hover:text-teal-700" : "text-slate-300"} />
+                            <ImageIcon size={15} className={frameUrl ? "text-teal-600 group-hover:text-teal-700" : "text-slate-300"} />
                           </button>
-                          {cam.debug_frame_url && (
+                          */}
+                          {frameUrl && (
                             <button
-                              onClick={() => handleSnapshot(cam, locName)}
-                              title="Live snapshot"
+                              onClick={(e) => { e.stopPropagation(); setSnapshotCam({ cam, locName }); setSnapshotUrl(`${frameUrl}${frameUrl.includes("?") ? "&" : "?"}t=${Date.now()}`); setSnapshotLoading(false); }}
+                              title="View image"
                               className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors group"
                             >
                               <Eye size={15} className="text-red-500 group-hover:text-red-600" />
@@ -273,21 +344,63 @@ export default function Dashboard() {
                     </tr>
                   );
                 })}
+                {/* ANPR (Prahaladnagar MLP) aggregate row — data from the ANPR report API */}
+                {mlp && (
+                  <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${cameraRows.length % 2 === 0 ? "" : "bg-slate-25"}`}>
+                    <td className="px-6 py-4">
+                      <div onClick={() => mlp.locId && openLocationHistory(mlp.locId, mlp.name)} title={`View ${mlp.name} history`} className="flex items-center gap-3 cursor-pointer group w-fit">
+                        <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                          <MapPin size={16} className="text-violet-500" />
+                        </div>
+                        <span className="text-[14px] font-semibold text-slate-800 group-hover:text-teal-600 transition-colors">{mlp.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                          <Camera size={13} className="text-blue-500" />
+                        </div>
+                        <span className="text-[14px] font-semibold text-slate-700">In / Out</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 text-center"><span className={`text-[18px] font-bold ${anprCarOcc > 0 ? "text-red-500" : "text-slate-300"}`} title="In − Out">{anprCarOcc}</span></td>
+                    <td className="px-3 py-4 text-center"><span className="text-[18px] font-bold text-emerald-600">{mlp.car.available}</span></td>
+                    <td className="px-3 py-4 text-center"><span className="text-[18px] font-bold text-slate-800">{mlp.car.total}</span></td>
+                    <td className="px-3 py-4 text-center"><span className={`text-[18px] font-bold ${anpr2wOcc > 0 ? "text-red-500" : "text-slate-300"}`} title="In − Out">{anpr2wOcc}</span></td>
+                    <td className="px-3 py-4 text-center"><span className="text-[18px] font-bold text-emerald-600">{mlp.bike.available}</span></td>
+                    <td className="px-3 py-4 text-center"><span className="text-[18px] font-bold text-slate-800">{mlp.bike.total}</span></td>
+                    <td className="px-3 py-4 text-center"><span className="text-[14px] font-bold text-slate-300">—</span></td>
+                    <td className="px-3 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-full max-w-[80px] h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${mlp.occupancyPct >= 90 ? "bg-red-500" : mlp.occupancyPct >= 60 ? "bg-amber-400" : "bg-emerald-400"}`}
+                            style={{ width: `${mlp.occupancyPct}%` }}
+                          />
+                        </div>
+                        <span className={`text-[12px] font-bold tabular-nums ${mlp.occupancyPct >= 90 ? "text-red-500" : mlp.occupancyPct >= 60 ? "text-amber-500" : "text-emerald-600"}`}>
+                          {mlp.occupancyPct}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4" />
+                  </tr>
+                )}
                 {/* Totals row */}
                 <tr className="bg-slate-50 border-t-2 border-slate-200">
                   <td className="px-6 py-4" colSpan={2}>
                     <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Totals</span>
                   </td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{occCar}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{Math.max(0, totalCapCar - occCar)}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalCapCar}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{occ2w}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{Math.max(0, totalCap2w - occ2w)}</span></td>
-                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{totalCap2w}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{kpiCarOcc}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{kpiCarAvail}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{kpiCarTotal}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-red-500">{kpi2wOcc}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-emerald-600">{kpi2wAvail}</span></td>
+                  <td className="px-3 py-4 text-center"><span className="text-[20px] font-extrabold text-slate-800">{kpi2wTotal}</span></td>
                   <td className="px-3 py-4 text-center"><span className={`text-[20px] font-extrabold ${slotsObstructed > 0 ? "text-amber-500" : "text-slate-300"}`}>{slotsObstructed}</span></td>
                   <td className="px-3 py-4 text-center">
                     <span className="text-[13px] font-bold text-slate-500">
-                      {totalSlots > 0 ? `${Math.round((slotsOccupied / totalSlots) * 100)}% occupied` : "--"}
+                      {kpiTotalCapacity > 0 ? `${Math.round((kpiOccupied / kpiTotalCapacity) * 100)}% occupied` : "--"}
                     </span>
                   </td>
                   <td />
@@ -303,11 +416,11 @@ export default function Dashboard() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h2 className="text-[16px] font-bold text-slate-900">Parking Locations</h2>
-            <p className="text-[12px] text-slate-400 mt-0.5">{visibleLocations.length} locations</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{visibleLocations.length + (mlp ? 1 : 0)} locations</p>
           </div>
           <button onClick={() => navigate("/parking-lots")} className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1">Manage <Eye size={11} /></button>
         </div>
-        {visibleLocations.length === 0 ? (
+        {visibleLocations.length === 0 && !mlp ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
               <MapPin size={24} className="text-slate-300" />
@@ -319,10 +432,10 @@ export default function Dashboard() {
             {/* Summary row */}
             <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
               {[
-                { label: "Total Locations", value: visibleLocations.length, color: "text-slate-700" },
-                { label: "Active", value: visibleLocations.filter((l) => l.is_active).length, color: "text-emerald-600" },
+                { label: "Total Locations", value: visibleLocations.length + (mlp ? 1 : 0), color: "text-slate-700" },
+                { label: "Active", value: visibleLocations.filter((l) => l.is_active).length + (mlp ? 1 : 0), color: "text-emerald-600" },
                 { label: "Inactive", value: visibleLocations.filter((l) => !l.is_active).length, color: "text-red-500" },
-                { label: "Total Capacity", value: visibleLocations.reduce((s, l) => s + (l.total_capacity || 0), 0), color: "text-violet-600" },
+                { label: "Total Capacity", value: visibleLocations.reduce((s, l) => s + (l.total_capacity || 0), 0) + (mlp ? mlp.capacity : 0), color: "text-violet-600" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center">
                   <p className={`text-[22px] font-extrabold ${color}`}>{value}</p>
@@ -347,11 +460,11 @@ export default function Dashboard() {
                   {visibleLocations.map((loc, idx) => (
                     <tr key={loc.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
+                        <div onClick={() => openLocationHistory(loc.id, loc.name)} title={`View ${loc.name} parking history`} className="flex items-center gap-3 cursor-pointer group w-fit">
                           <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
                             <MapPin size={16} className="text-violet-500" />
                           </div>
-                          <span className="text-[14px] font-semibold text-slate-800">{loc.name}</span>
+                          <span className="text-[14px] font-semibold text-slate-800 group-hover:text-teal-600 transition-colors">{loc.name}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-[13px] text-slate-500">{areas.find((a) => a.id === loc.area_id)?.name || "—"}</td>
@@ -369,7 +482,7 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <button
-                          onClick={() => navigate(`/parking-lots/${loc.id}`)}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/parking-lots/${loc.id}`); }}
                           title="View details"
                           className="w-8 h-8 rounded-lg bg-teal-50 hover:bg-teal-100 flex items-center justify-center transition-colors group mx-auto"
                         >
@@ -378,6 +491,43 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ))}
+                  {/* ANPR (Prahaladnagar MLP) location row — capacity/data from the ANPR report API */}
+                  {mlp && (
+                    <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${visibleLocations.length % 2 === 0 ? "" : "bg-slate-25"}`}>
+                      <td className="px-6 py-4">
+                        <div onClick={() => mlp.locId && openLocationHistory(mlp.locId, mlp.name)} title={`View ${mlp.name} history`} className="flex items-center gap-3 cursor-pointer group w-fit">
+                          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                            <MapPin size={16} className="text-violet-500" />
+                          </div>
+                          <span className="text-[14px] font-semibold text-slate-800 group-hover:text-teal-600 transition-colors">{mlp.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-500">{mlp.areaName}</td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{mlp.type}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="text-[18px] font-bold text-slate-800">{mlp.capacity}</span>
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 text-emerald-700 bg-emerald-50">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Active
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {mlp.locId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`/parking-lots/${mlp.locId}`); }}
+                            title="View details"
+                            className="w-8 h-8 rounded-lg bg-teal-50 hover:bg-teal-100 flex items-center justify-center transition-colors group mx-auto"
+                          >
+                            <Eye size={15} className="text-teal-600 group-hover:text-teal-700" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
