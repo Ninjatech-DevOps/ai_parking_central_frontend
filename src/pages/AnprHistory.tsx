@@ -429,6 +429,7 @@ export default function AnprHistory() {
                 <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Time</th>
                 <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Out Time</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Duration</th>
+                <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Revenue</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
                 {showDelete && <th className="px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-10"></th>}
@@ -437,7 +438,7 @@ export default function AnprHistory() {
             <tbody>
               {sessions.length === 0 && !loading && !errored ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-20 text-slate-400">
+                  <td colSpan={9} className="text-center py-20 text-slate-400">
                     <div className="flex flex-col items-center">
                       <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
                         <Car size={24} className="text-slate-300" />
@@ -552,6 +553,11 @@ export default function AnprHistory() {
                   <td className="px-3 py-3 text-center">
                     <span className={`text-[12px] font-semibold ${s.duration_display ? "text-slate-700" : "text-teal-600"}`}>
                       {s.duration_display || "Active"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className={`text-[13px] font-bold ${s.revenue && s.revenue !== "-" ? "text-emerald-700" : "text-slate-300"}`}>
+                      {s.revenue && s.revenue !== "-" ? `₹${s.revenue}` : "—"}
                     </span>
                   </td>
                   <td className="px-3 py-3 text-center">

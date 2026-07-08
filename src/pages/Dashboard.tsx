@@ -23,6 +23,15 @@ const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "
 // (e.g. ANPR-only entry/exit gates that don't have parking slots).
 const HIDDEN_CAMERA_LOCATIONS = ["Prahaladnagar MLP"];
 
+// Normalize a location name for matching (lowercase, strip spaces/punctuation).
+const normLoc = (v?: string | null) => (v || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// Force specific locations to a fixed share-link token (overrides the auto lookup).
+// Key = normalized location name, value = share token.
+const LOCATION_LINK_OVERRIDES: Record<string, string> = {
+  opengroundprahaladnagar: "SYb0FEYDb_Sfrbj_foHAZQ", // Open Ground - Prahaladnagar
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -34,6 +43,12 @@ export default function Dashboard() {
   // and scope_id), then fall back to matching the link name to the location name.
   // If nothing matches, fall back to the internal single-location Parking History page.
   async function openLocationHistory(locId: string, locName?: string) {
+    // Fixed override for specific locations (e.g. Open Ground → its current share link).
+    const override = locName ? LOCATION_LINK_OVERRIDES[normLoc(locName)] : undefined;
+    if (override) {
+      window.open(`${window.location.origin}/view/${override}`, "_blank", "noopener,noreferrer");
+      return;
+    }
     try {
       const { data } = await sharedLinksApi.list("is_active=true&page_size=500");
       const links = (data.items || []).filter((l) => l.is_active && l.scope_type === "LOCATION");
@@ -45,9 +60,14 @@ export default function Dashboard() {
         return s.split(",").map((x) => x.trim()).filter(Boolean);
       };
       const norm = (v?: string | null) => (v || "").trim().toLowerCase();
-      const link =
-        links.find((l) => parseIds(l).includes(locId) || l.scope_id === locId) ||
-        (locName ? links.find((l) => norm(l.name) === norm(locName)) : undefined);
+      // A location can have several active links (old + new). Match by id, scope_id,
+      // or name, then pick the MOST RECENTLY CREATED so a fresh link supersedes old ones.
+      const matches = links.filter(
+        (l) => parseIds(l).includes(locId) || l.scope_id === locId || (locName ? norm(l.name) === norm(locName) : false),
+      );
+      const link = matches.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )[0];
       if (link?.token) {
         window.open(`${window.location.origin}/view/${link.token}`, "_blank", "noopener,noreferrer");
         return;
