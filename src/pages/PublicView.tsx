@@ -489,33 +489,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
       }
 
       const s = summaryRes.data;
-      // For "today" filter: lock cards to 10AM-6PM window
-      if (dateFilter === "today") {
-        if (items.length > 0 && page === 1) {
-          // Use latest scan in the 10-6 window
-          const latest = items[0];
-          setSummary({
-            ...s, report,
-            car_occupied: latest.car_occupied,
-            car_available: latest.car_available,
-            car_total: latest.car_total,
-            two_wheeler_occupied: latest.two_wheeler_occupied,
-            two_wheeler_available: latest.two_wheeler_available,
-            two_wheeler_total: latest.two_wheeler_total,
-          });
-        } else {
-          // No scans yet (before 10AM or no data) — show 0 occupied, full available
-          setSummary({
-            ...s, report,
-            car_occupied: 0,
-            car_available: s.car_total,
-            two_wheeler_occupied: 0,
-            two_wheeler_available: s.two_wheeler_total,
-          });
-        }
-      } else {
-        setSummary({ ...s, report });
-      }
+      setSummary({ ...s, report });
     } catch { /* */ }
     setLoading(false);
   }, [token, page]);
