@@ -85,7 +85,7 @@ export default function Dashboard() {
   const occCar = allSlots.reduce((sum, s) => sum + (s.occupied_car || 0), 0);
   const occ2w = allSlots.reduce((sum, s) => sum + (s.occupied_two_wheeler || 0), 0);
   const slotsOccupied = occCar + occ2w;
-  const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED").length;
+  const slotsObstructed = allSlots.filter((s) => s.state === "OBSTRUCTED" || s.has_obstruction).length;
   const slotsAvailable = Math.max(0, totalSlots - slotsOccupied - slotsObstructed);
   const availCar = Math.max(0, totalCapCar - occCar);
   const avail2w = Math.max(0, totalCap2w - occ2w);
@@ -95,7 +95,7 @@ export default function Dashboard() {
     loc.cameras.map((cam) => {
       const total = cam.slots.reduce((sum, s) => sum + ((s.capacity_car || 0) + (s.capacity_two_wheeler || 0) || 1), 0);
       const occupied = cam.slots.reduce((sum, s) => sum + (s.occupied_car || 0) + (s.occupied_two_wheeler || 0), 0);
-      const obstructed = cam.slots.filter((s) => s.state === "OBSTRUCTED").length;
+      const obstructed = cam.slots.filter((s) => s.state === "OBSTRUCTED" || s.has_obstruction).length;
       const available = Math.max(0, total - occupied - obstructed);
       const mismatched = cam.slots.filter((s) => s.is_mismatched).length;
       const capCar = cam.slots.reduce((s, sl) => s + (sl.capacity_car || 0), 0);

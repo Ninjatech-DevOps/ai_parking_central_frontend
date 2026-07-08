@@ -205,6 +205,7 @@ export interface CanvasSlot {
   slot_type: "CAR" | "TWO_WHEELER" | "GENERAL";
   detected_vehicle_type: "CAR" | "TWO_WHEELER" | null;
   is_mismatched: boolean;
+  has_obstruction: boolean;
   capacity_car: number;
   capacity_two_wheeler: number;
   occupied_car: number;
