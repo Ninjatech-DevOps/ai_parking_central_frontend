@@ -152,6 +152,14 @@ export default function Dashboard() {
   const availCar = Math.max(0, totalCapCar - occCar);
   const avail2w = Math.max(0, totalCap2w - occ2w);
 
+  // Location-scoped visibility:
+  //  • "All" (no location selected) → show both AI Parking and Prahaladnagar MLP.
+  //  • a specific AI Parking location → show only AI Parking (hide MLP).
+  //  • Prahaladnagar MLP selected     → show only MLP (hide AI Parking).
+  const mlpSelected = !!locationId && !!mlpLocation && locationId === mlpLocation.id;
+  const showAnpr = !locationId || mlpSelected;
+  const showAiParking = !locationId || !mlpSelected;
+
   // Flatten cameras with location info for table
   const cameraRows = canvasData.flatMap((loc) =>
     loc.cameras.map((cam) => {
@@ -166,13 +174,13 @@ export default function Dashboard() {
       const occ2w = cam.slots.reduce((s, sl) => s + (sl.occupied_two_wheeler || 0), 0);
       return { cam, locName: loc.location_name, locId: loc.location_id, total, available, occupied, obstructed, mismatched, capCar, cap2w, occCar, occ2w };
     })
-  ).filter((r) => !HIDDEN_CAMERA_LOCATIONS.includes(r.locName));
+  ).filter((r) => showAiParking && !HIDDEN_CAMERA_LOCATIONS.includes(r.locName));
 
   // Locations shown in the "Parking Locations" section (hidden ANPR-only locations excluded).
-  const visibleLocations = locationsList.filter((l) => !HIDDEN_CAMERA_LOCATIONS.includes(l.name));
+  const visibleLocations = locationsList.filter((l) => showAiParking && !HIDDEN_CAMERA_LOCATIONS.includes(l.name));
 
   // ANPR (Prahaladnagar MLP) aggregate row for the Camera Overview + Parking Locations.
-  const mlp = anprReport
+  const mlp = anprReport && showAnpr
     ? {
         name: mlpLocation?.name || HIDDEN_CAMERA_LOCATIONS[0],
         locId: mlpLocation?.id,
@@ -450,12 +458,11 @@ export default function Dashboard() {
         ) : (
           <>
             {/* Summary row */}
-            <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="grid grid-cols-3 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
               {[
                 { label: "Total Locations", value: visibleLocations.length + (mlp ? 1 : 0), color: "text-slate-700" },
                 { label: "Active", value: visibleLocations.filter((l) => l.is_active).length + (mlp ? 1 : 0), color: "text-emerald-600" },
                 { label: "Inactive", value: visibleLocations.filter((l) => !l.is_active).length, color: "text-red-500" },
-                { label: "Total Capacity", value: visibleLocations.reduce((s, l) => s + (l.total_capacity || 0), 0) + (mlp ? mlp.capacity : 0), color: "text-violet-600" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center">
                   <p className={`text-[22px] font-extrabold ${color}`}>{value}</p>
@@ -471,7 +478,6 @@ export default function Dashboard() {
                     <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
                     <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Area</th>
                     <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
-                    <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Capacity</th>
                     <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                     <th className="text-center px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -490,9 +496,6 @@ export default function Dashboard() {
                       <td className="px-4 py-4 text-[13px] text-slate-500">{areas.find((a) => a.id === loc.area_id)?.name || "—"}</td>
                       <td className="px-3 py-4 text-center">
                         <span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{loc.location_type}</span>
-                      </td>
-                      <td className="px-3 py-4 text-center">
-                        <span className="text-[18px] font-bold text-slate-800">{loc.total_capacity}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
                         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 ${loc.is_active ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>
@@ -525,9 +528,6 @@ export default function Dashboard() {
                       <td className="px-4 py-4 text-[13px] text-slate-500">{mlp.areaName}</td>
                       <td className="px-3 py-4 text-center">
                         <span className="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1 uppercase tracking-wide">{mlp.type}</span>
-                      </td>
-                      <td className="px-3 py-4 text-center">
-                        <span className="text-[18px] font-bold text-slate-800">{mlp.capacity}</span>
                       </td>
                       <td className="px-3 py-4 text-center">
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-lg px-2.5 py-1 text-emerald-700 bg-emerald-50">
