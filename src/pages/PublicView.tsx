@@ -580,6 +580,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
               <thead><tr className="bg-slate-50/80 border-b border-slate-100">
                 {f("image") && <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Snapshot</th>}
                 {f("date") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date & Time</th>}
+                {f("camera") && <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Camera</th>}
                 {f("car_occupied") && <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">Car Occ</th>}
                 {f("car_available") && <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Car Avail</th>}
                 {f("car_total") && <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Total</th>}
@@ -594,6 +595,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
                   <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 !== 0 ? "bg-slate-25" : ""}`}>
                     {f("image") && <td className="px-4 py-3">{s.image_url ? <button onClick={() => setPreviewImg(s.image_url)} className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"><img src={s.image_url} alt="" className="w-full h-full object-cover" /></button> : <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={14} className="text-slate-300" /></div>}</td>}
                     {f("date") && <td className="px-3 py-3"><p className="text-[12px] font-semibold text-slate-700">{formatDate(s.recorded_at)}</p><p className="text-[11px] text-slate-400">{formatTime(s.recorded_at)}</p></td>}
+                    {f("camera") && <td className="px-3 py-3"><span className="text-[11px] font-mono text-slate-500">{s.camera_label || "—"}</span></td>}
                     {f("car_occupied") && <td className="px-3 py-3 text-center"><span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span></td>}
                     {f("car_available") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span></td>}
                     {f("car_total") && <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-blue-700">{s.car_total}</span></td>}

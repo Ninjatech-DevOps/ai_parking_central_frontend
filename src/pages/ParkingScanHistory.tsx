@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFilter } from "@/contexts/FilterContext";
-import { parkingHistoryApi, downloadFile } from "@/services/api";
+import { parkingHistoryApi, camerasApi, downloadFile } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
 import {
   Download, FileSpreadsheet, FileText,
-  X, Loader2, Image as ImageIcon, Clock, Pencil,
+  X, Loader2, Image as ImageIcon, Clock, Pencil, Video,
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
-import type { ParkingScan, OccupancySummary } from "@/types/api";
+import type { ParkingScan, OccupancySummary, Camera } from "@/types/api";
 import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
 
 function ParkingScanHistorySkeleton() {
@@ -20,7 +20,7 @@ function ParkingScanHistorySkeleton() {
         <Skel className="w-44 h-10 rounded-xl" />
         <Skel className="w-44 h-10 rounded-xl" />
       </div>
-      <SkeletonTable rows={8} cols={11} />
+      <SkeletonTable rows={8} cols={12} />
     </SkeletonShell>
   );
 }
@@ -170,6 +170,11 @@ export default function ParkingScanHistory() {
   const showDelete = _urlParams.has("delete");
   const showEdit = _urlParams.has("edit");
 
+  // Camera filter — cameras belong to a location, so the dropdown only fills
+  // once a location is picked. Cleared whenever the location scope changes.
+  const [cameraId, setCameraId] = useState("");
+  const [cameras, setCameras] = useState<Camera[]>([]);
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState("today");
@@ -190,14 +195,31 @@ export default function ParkingScanHistory() {
   const [draftPreset, setDraftPreset] = useState("today");
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
+  const [draftCamera, setDraftCamera] = useState("");
+
+  // Camera list for the active location. One request covers every device there.
+  useEffect(() => {
+    if (!locationId) { setCameras([]); setCameraId(""); setDraftCamera(""); return; }
+    let cancelled = false;
+    camerasApi.byLocation(locationId)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setCameras((data.items || []).filter((c) => c.module_type === "AI_PARKING"));
+      })
+      .catch(() => { if (!cancelled) setCameras([]); });
+    // A camera from the previous location can't apply to this one.
+    setCameraId(""); setDraftCamera("");
+    return () => { cancelled = true; };
+  }, [locationId]);
+
   function openFilters() {
-    setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo); setFiltersOpen(true);
+    setDraftPreset(datePreset); setDraftFrom(customFrom); setDraftTo(customTo); setDraftCamera(cameraId); setFiltersOpen(true);
   }
   function applyFilters() {
-    setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo); setPage(1); setFiltersOpen(false);
+    setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo); setCameraId(draftCamera); setPage(1); setFiltersOpen(false);
   }
   function clearDraft() {
-    setDraftPreset("today"); setDraftFrom(""); setDraftTo("");
+    setDraftPreset("today"); setDraftFrom(""); setDraftTo(""); setDraftCamera("");
     resetFilters();
   }
 
@@ -218,6 +240,7 @@ export default function ParkingScanHistory() {
     }
     if (locationId) p.set("location_id", locationId);
     else if (areaId) p.set("area_id", areaId);
+    if (cameraId) p.set("camera_id", cameraId);
     return p.toString();
   }
 
@@ -229,31 +252,34 @@ export default function ParkingScanHistory() {
       setTotalPages(data.total_pages);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [page, datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
+  }, [page, datePreset, customFrom, customTo, areaId, locationId, cameraId, intervalMin]);
 
   usePolling(fetchData, 15000);
 
   // Current occupancy summary (latest scan per location, summed) — scope only,
   // so it ignores date/interval filters and stays "live". Same data as the PDF.
+  // Camera IS included: without it the cards would total the whole location
+  // while the rows below show a single camera.
   const fetchSummary = useCallback(async () => {
     const p = new URLSearchParams();
     if (locationId) p.set("location_id", locationId);
     else if (areaId) p.set("area_id", areaId);
+    if (cameraId) p.set("camera_id", cameraId);
     try {
       const { data } = await parkingHistoryApi.occupancySummary(p.toString());
       setSummary(data);
     } catch { /* ignore */ }
-  }, [areaId, locationId]);
+  }, [areaId, locationId, cameraId]);
 
   usePolling(fetchSummary, 15000);
-  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, intervalMin]);
+  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, cameraId, intervalMin]);
 
   function resetFilters() {
-    setDatePreset("today"); setCustomFrom(""); setCustomTo("");
+    setDatePreset("today"); setCustomFrom(""); setCustomTo(""); setCameraId("");
     setPage(1);
   }
 
-  const activeFilterCount = [customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+  const activeFilterCount = [customFrom, customTo, cameraId].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
 
   // Inline-edit a scan's count; persist to backend and update the row in place.
   async function handleCellSave(id: string, field: string, val: number | string) {
@@ -275,8 +301,10 @@ export default function ParkingScanHistory() {
     const ext = type === "csv" ? "csv" : type === "excel" ? "xlsx" : "pdf";
     const url = type === "csv" ? parkingHistoryApi.exportCsvUrl(ps) : type === "excel" ? parkingHistoryApi.exportExcelUrl(ps) : parkingHistoryApi.exportPdfUrl(ps);
 
-    // Build filename: LOCATION-FROM-TO-DATE.ext
-    const loc = (summary?.location_name || "All").replace(/[^a-zA-Z0-9]+/g, "_").replace(/_+$/, "");
+    // Build filename: LOCATION[_CAMERA]-FROM-TO-DATE.ext
+    const camLabel = cameraId ? cameras.find((c) => c.id === cameraId)?.position_label : "";
+    const loc = `${summary?.location_name || "All"}${camLabel ? `_${camLabel}` : ""}`
+      .replace(/[^a-zA-Z0-9]+/g, "_").replace(/_+$/, "");
     const now = new Date();
     const fmtH = (d: Date) => d.toLocaleTimeString("en-IN", { hour: "2-digit", hour12: true }).replace(/\s/g, "").toUpperCase();
     const fmtD = (d: Date) => d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }).replace(/\s/g, "");
@@ -298,10 +326,11 @@ export default function ParkingScanHistory() {
 
   const q = search.trim().toLowerCase();
   const visibleScans = q
-    ? scans.filter((s) => (s.location_name || "").toLowerCase().includes(q) || (s.device_name || "").toLowerCase().includes(q))
+    ? scans.filter((s) => (s.location_name || "").toLowerCase().includes(q) || (s.device_name || "").toLowerCase().includes(q) || (s.camera_label || "").toLowerCase().includes(q))
     : scans;
 
   const isLive = datePreset === "today" && !customFrom && !customTo;
+  const activeCameraLabel = cameraId ? cameras.find((c) => c.id === cameraId)?.position_label : "";
 
   return (
     <div className="w-full">
@@ -312,7 +341,15 @@ export default function ParkingScanHistory() {
             <h1 className="text-[22px] font-bold text-slate-900">AI Parking History</h1>
             {isLive && <LiveBadge />}
           </div>
-          <p className="text-[13px] text-slate-400 mt-0.5">Detection scan records — one row per scan cycle</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">
+            Detection scan records — one row per scan cycle
+            {activeCameraLabel && (
+              <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5 align-middle">
+                <Video size={10} /> {activeCameraLabel}
+                <button onClick={() => setCameraId("")} className="hover:text-teal-900" title="Clear camera filter"><X size={10} /></button>
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {/* Interval selector */}
@@ -395,7 +432,7 @@ export default function ParkingScanHistory() {
       )}
 
       {/* Search + Filters */}
-      <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location or device..." filterCount={activeFilterCount} onOpen={openFilters} />
+      <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location, device or camera..." filterCount={activeFilterCount} onOpen={openFilters} />
 
       <FilterPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={clearDraft}>
         <FilterField label="Quick Range">
@@ -409,6 +446,16 @@ export default function ParkingScanHistory() {
         </FilterField>
         <FilterField label="To Date">
           <FilterDateInput value={draftTo} onChange={(v) => { setDraftTo(v); setDraftPreset(""); }} />
+        </FilterField>
+        <FilterField label="Camera">
+          {locationId ? (
+            <FilterSelect value={draftCamera} onChange={setDraftCamera}>
+              <option value="">All cameras</option>
+              {cameras.map((c) => <option key={c.id} value={c.id}>{c.position_label}</option>)}
+            </FilterSelect>
+          ) : (
+            <p className="text-[12px] text-slate-400 py-2">Select a location first to filter by camera.</p>
+          )}
         </FilterField>
       </FilterPanel>
 
@@ -429,6 +476,7 @@ export default function ParkingScanHistory() {
                 <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Image</th>
                 <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
                 <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Device</th>
+                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Camera</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Occ</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Car Avail</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Car Total</th>
@@ -442,7 +490,7 @@ export default function ParkingScanHistory() {
             <tbody>
               {visibleScans.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-16 text-slate-400">
+                  <td colSpan={13} className="text-center py-16 text-slate-400">
                     <div className="flex flex-col items-center">
                       <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
                         <Clock size={24} className="text-slate-300" />
@@ -494,6 +542,9 @@ export default function ParkingScanHistory() {
                   </td>
                   <td className="px-3 py-3">
                     <span className="text-[11px] font-mono text-slate-500">{s.device_name || "—"}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-[11px] font-mono text-slate-500">{s.camera_label || "—"}</span>
                   </td>
                   <td className="px-3 py-3 text-center">
                     {showEdit ? <EditableCell value={s.car_occupied} scanId={s.id} field="car_occupied" color={s.car_occupied > 0 ? "text-red-500" : "text-slate-300"} onSave={handleCellSave} /> : <span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span>}

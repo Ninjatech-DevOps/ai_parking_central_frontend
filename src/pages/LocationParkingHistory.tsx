@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { parkingHistoryApi, locationsApi } from "@/services/api";
+import { parkingHistoryApi, locationsApi, camerasApi } from "@/services/api";
 import { useFilter } from "@/contexts/FilterContext";
 import { usePolling } from "@/hooks/usePolling";
 import Pagination from "@/components/Pagination";
-import { ArrowLeft, Image as ImageIcon, Clock, X } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Clock, X, Video } from "lucide-react";
 import { LiveBadge } from "@/components/FilterPanel";
-import type { ParkingScan, OccupancySummary, Location } from "@/types/api";
+import type { ParkingScan, OccupancySummary, Location, Camera } from "@/types/api";
 import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
 
 // Single-location Parking History — scoped entirely by the :id in the URL path.
@@ -79,11 +79,21 @@ export default function LocationParkingHistory() {
   const [loading, setLoading] = useState(true);
   const [datePreset, setDatePreset] = useState("today");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [cameraId, setCameraId] = useState("");
+  const [cameras, setCameras] = useState<Camera[]>([]);
 
   // Location details for the header (name / area / type).
   useEffect(() => {
     if (!id) return;
     locationsApi.get(id).then(({ data }) => setLocation(data)).catch(() => {});
+  }, [id]);
+
+  // Cameras at this location — one request covers every device here.
+  useEffect(() => {
+    if (!id) return;
+    camerasApi.byLocation(id)
+      .then(({ data }) => setCameras((data.items || []).filter((c) => c.module_type === "AI_PARKING")))
+      .catch(() => setCameras([]));
   }, [id]);
 
   // Close image preview on Escape.
@@ -103,15 +113,19 @@ export default function LocationParkingHistory() {
     if (start) p.set("start_date", start);
     if (end) p.set("end_date", end);
     if (id) p.set("location_id", id);
+    if (cameraId) p.set("camera_id", cameraId);
     return p.toString();
-  }, [id, page, datePreset]);
+  }, [id, page, datePreset, cameraId]);
 
   const fetchData = useCallback(async () => {
     if (!id) return;
+    // The summary carries the camera filter too, so the cards can never show
+    // location totals while the rows below show a single camera.
+    const sumParams = `location_id=${id}${cameraId ? `&camera_id=${cameraId}` : ""}`;
     try {
       const [listRes, sumRes] = await Promise.all([
         parkingHistoryApi.list(buildParams()),
-        parkingHistoryApi.occupancySummary(`location_id=${id}`).catch(() => null),
+        parkingHistoryApi.occupancySummary(sumParams).catch(() => null),
       ]);
       setScans(listRes.data.items || []);
       setTotal(listRes.data.total || 0);
@@ -119,10 +133,10 @@ export default function LocationParkingHistory() {
       if (sumRes) setSummary(sumRes.data);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [id, buildParams]);
+  }, [id, buildParams, cameraId]);
 
   usePolling(fetchData, 15000);
-  useEffect(() => { setPage(1); }, [datePreset]);
+  useEffect(() => { setPage(1); }, [datePreset, cameraId]);
 
   const areaName = location ? (areas.find((a) => a.id === location.area_id)?.name || "") : "";
   const subtitle = [areaName, location?.location_type].filter(Boolean).join(" · ");
@@ -140,7 +154,7 @@ export default function LocationParkingHistory() {
             </div>
           ))}
         </div>
-        <SkeletonTable rows={8} cols={9} />
+        <SkeletonTable rows={8} cols={10} />
       </SkeletonShell>
     );
   }
@@ -165,8 +179,9 @@ export default function LocationParkingHistory() {
         </div>
       </div>
 
-      {/* Date range */}
-      <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 mb-6">
+      {/* Date range + camera */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="inline-flex items-center bg-slate-100 rounded-xl p-1">
         {DATE_PRESETS.map((dp) => (
           <button
             key={dp.key}
@@ -176,6 +191,21 @@ export default function LocationParkingHistory() {
             {dp.label}
           </button>
         ))}
+      </div>
+
+        {cameras.length > 0 && (
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 h-10 card-shadow">
+            <Video size={12} className="text-slate-400" />
+            <select
+              value={cameraId}
+              onChange={(e) => setCameraId(e.target.value)}
+              className="text-[12px] font-semibold text-slate-600 bg-transparent border-none focus:outline-none cursor-pointer"
+            >
+              <option value="">All cameras</option>
+              {cameras.map((c) => <option key={c.id} value={c.id}>{c.position_label}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Occupancy summary cards — grouped Cars / 2 Wheeler */}
@@ -228,7 +258,7 @@ export default function LocationParkingHistory() {
       {/* Records table */}
       <p className="text-[14px] font-bold text-slate-700 mb-3">Occupancy records ({total})</p>
       {showSkeleton ? (
-        <SkeletonTable rows={8} cols={9} />
+        <SkeletonTable rows={8} cols={10} />
       ) : (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
           <div className="overflow-x-auto">
@@ -238,6 +268,7 @@ export default function LocationParkingHistory() {
                   <th className="text-left px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
                   <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Time</th>
                   <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Image</th>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Camera</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">Car Occ</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Car Avail</th>
                   <th className="text-center px-3 py-3 text-[11px] font-bold text-blue-400 uppercase tracking-wider">Car Total</th>
@@ -249,7 +280,7 @@ export default function LocationParkingHistory() {
               <tbody>
                 {scans.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-16 text-slate-400">
+                    <td colSpan={10} className="text-center py-16 text-slate-400">
                       <div className="flex flex-col items-center">
                         <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3"><Clock size={24} className="text-slate-300" /></div>
                         <p className="text-[14px] font-semibold">No parking scans found</p>
@@ -270,6 +301,7 @@ export default function LocationParkingHistory() {
                         <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center"><ImageIcon size={14} className="text-slate-300" /></div>
                       )}
                     </td>
+                    <td className="px-3 py-3"><span className="text-[11px] font-mono text-slate-500">{s.camera_label || "—"}</span></td>
                     <td className="px-3 py-3 text-center"><span className={`text-[16px] font-bold ${s.car_occupied > 0 ? "text-red-500" : "text-slate-300"}`}>{s.car_occupied}</span></td>
                     <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-emerald-600">{s.car_available}</span></td>
                     <td className="px-3 py-3 text-center"><span className="text-[16px] font-bold text-blue-700">{s.car_total}</span></td>

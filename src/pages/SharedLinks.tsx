@@ -8,7 +8,7 @@ import CrudDialog from "@/components/CrudDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchSelect from "@/components/SearchSelect";
 import Pagination from "@/components/Pagination";
-import { sharedLinksApi, areasApi, locationsApi, devicesApi, camerasApi } from "@/services/api";
+import { sharedLinksApi, areasApi, locationsApi, camerasApi } from "@/services/api";
 import { showSuccess, showError } from "@/lib/toast";
 import SharedLinksSkeleton from "@/components/skeletons/SharedLinksSkeleton";
 import type { SharedLink, Area, Location, Camera } from "@/types/api";
@@ -63,6 +63,7 @@ const FIELD_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "image", label: "Image" },
     { value: "location", label: "Location" },
     { value: "device", label: "Device" },
+    { value: "camera", label: "Camera" },
     { value: "car_occupied", label: "Car Occupied" },
     { value: "car_available", label: "Car Available" },
     { value: "car_total", label: "Car Total" },
@@ -175,14 +176,9 @@ export default function SharedLinks() {
     if (formScopeType !== "CAMERA" || !formScopeId) { setCameras([]); return; }
     const load = async () => {
       try {
-        const { data: devData } = await devicesApi.list(`location_id=${formScopeId}&page_size=100`);
-        const devices = devData.items || [];
-        const allCams: Camera[] = [];
-        for (const dev of devices) {
-          const { data: camData } = await camerasApi.byDevice(dev.id);
-          allCams.push(...(camData.items || []));
-        }
-        setCameras(allCams);
+        // One request covers every device at the location.
+        const { data } = await camerasApi.byLocation(formScopeId);
+        setCameras(data.items || []);
       } catch { /* ignore */ }
     };
     load();

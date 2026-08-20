@@ -105,6 +105,8 @@ export const locationsApi = {
 export const camerasApi = {
   list: (params?: string) => api.get<PaginatedResponse<Camera>>(`/cameras?${params || "page_size=100"}`),
   byDevice: (deviceId: string) => api.get<PaginatedResponse<Camera>>(`/cameras?device_id=${deviceId}&page_size=100`),
+  // All cameras across every device at a location, in one request.
+  byLocation: (locationId: string) => api.get<PaginatedResponse<Camera>>(`/cameras?location_id=${locationId}&page_size=100`),
   create: (d: Record<string, unknown>) => api.post<Camera>("/cameras", d),
   update: (id: string, d: Record<string, unknown>) => api.patch<Camera>(`/cameras/${id}`, d),
   delete: (id: string) => api.delete(`/cameras/${id}`),
