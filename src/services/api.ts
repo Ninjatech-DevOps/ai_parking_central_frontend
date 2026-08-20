@@ -98,7 +98,8 @@ export const locationsApi = {
   create: (d: Record<string, unknown>) => api.post<Location>("/locations", d),
   update: (id: string, d: Record<string, unknown>) => api.patch<Location>(`/locations/${id}`, d),
   delete: (id: string) => api.delete(`/locations/${id}`),
-  canvas: (id: string) => api.get<CanvasResponse>(`/locations/${id}/canvas`),
+  // `_t` cache-busts so the Dashboard never serves a stale browser-cached canvas between polls.
+  canvas: (id: string) => api.get<CanvasResponse>(`/locations/${id}/canvas?_t=${Date.now()}`),
 };
 
 export const camerasApi = {

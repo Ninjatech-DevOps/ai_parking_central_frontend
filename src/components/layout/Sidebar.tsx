@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Monitor, Users, Settings,
   ChevronRight, Building2, Globe, ShieldCheck,
-  ScanLine, Car,
+  ScanLine, Car, Link2,
 } from "lucide-react";
 
 interface NavItemConfig {
@@ -61,7 +61,7 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/users", label: "Users", icon: Users, permissions: ["users:view"] },
       { to: "/roles", label: "Roles", icon: ShieldCheck, permissions: ["roles:view", "roles:manage"] },
-      // { to: "/shared-links", label: "Shared Links", icon: Link2 }, // hidden
+      { to: "/shared-links", label: "Shared Links", icon: Link2 },
     ],
   },
 ];
