@@ -972,7 +972,7 @@ export default function PublicView() {
   useEffect(() => {
     fetchData();
     if (activeTab === "dashboard_parking" || !activeTab) {
-      const i = setInterval(fetchData, 5000);
+      const i = setInterval(fetchData, 50000);
       return () => clearInterval(i);
     }
   }, [fetchData, activeTab]);
