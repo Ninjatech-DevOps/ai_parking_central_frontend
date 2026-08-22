@@ -25,7 +25,7 @@ const sections: SectionConfig[] = [
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/parking-history", label: "Parking History", icon: Car, permissions: ["slots:view"] },
-      { to: "/anpr-history", label: "Prahaladnagar MLP History", icon: ScanLine, permissions: ["anpr:view"] },
+      // { to: "/anpr-history", label: "Prahaladnagar MLP History", icon: ScanLine, permissions: ["anpr:view"] }, // hidden
       // { to: "/anpr-records", label: "Prahaladnagar MLP Records", icon: ScanLine, permissions: ["anpr:view"] }, // hidden
     ],
   },

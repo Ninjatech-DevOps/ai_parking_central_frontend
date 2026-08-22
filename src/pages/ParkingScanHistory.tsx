@@ -247,7 +247,10 @@ export default function ParkingScanHistory() {
   const fetchData = useCallback(async () => {
     try {
       const { data } = await parkingHistoryApi.list(buildParams());
-      setScans(data.items || []);
+      // Obstruction detection is currently unreliable at the edge, so the UI
+      // pins it to false and hides the column. Remove this override (and
+      // un-comment the Obstructed header/cell below) to bring it back.
+      setScans((data.items || []).map((s) => ({ ...s, has_obstruction: false })));
       setTotal(data.total);
       setTotalPages(data.total_pages);
     } catch { /* ignore */ }
@@ -483,14 +486,14 @@ export default function ParkingScanHistory() {
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-indigo-400 uppercase tracking-wider">2W Occ</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-emerald-400 uppercase tracking-wider">2W Avail</th>
                 <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">2W Total</th>
-                <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">Obstructed</th>
+                {/* <th className="text-center px-3 py-3 text-[11px] font-bold text-red-400 uppercase tracking-wider">Obstructed</th> */}
                 {showDelete && <th className="px-3 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-10"></th>}
               </tr>
             </thead>
             <tbody>
               {visibleScans.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-16 text-slate-400">
+                  <td colSpan={12} className="text-center py-16 text-slate-400">
                     <div className="flex flex-col items-center">
                       <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
                         <Clock size={24} className="text-slate-300" />
@@ -501,7 +504,7 @@ export default function ParkingScanHistory() {
                   </td>
                 </tr>
               ) : visibleScans.map((s, idx) => (
-                <tr key={s.id} className={`border-b hover:bg-slate-50/60 transition-colors ${s.has_obstruction ? "border-l-4 border-l-red-500 bg-red-50/40 border-b-red-100" : `border-b-slate-50 ${idx % 2 === 0 ? "" : "bg-slate-25"}`}`}>
+                <tr key={s.id} className={`border-b border-b-slate-50 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-25"}`}>
                   {showEdit ? (
                     <td className="px-6 py-3" colSpan={2}>
                       <input
@@ -564,13 +567,13 @@ export default function ParkingScanHistory() {
                   <td className="px-3 py-3 text-center">
                     {showEdit ? <EditableCell value={s.two_wheeler_total} scanId={s.id} field="two_wheeler_total" color="text-slate-800" onSave={handleCellSave} /> : <span className="text-[16px] font-bold text-slate-800">{s.two_wheeler_total}</span>}
                   </td>
-                  <td className="px-3 py-3 text-center">
+                  {/* <td className="px-3 py-3 text-center">
                     {s.has_obstruction ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 bg-red-100 rounded-full px-2.5 py-0.5">Yes</span>
                     ) : (
                       <span className="text-[12px] text-slate-300">No</span>
                     )}
-                  </td>
+                  </td> */}
                   {showDelete && (
                     <td className="px-2 py-3 text-center">
                       <button onClick={() => handleDelete(s.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
