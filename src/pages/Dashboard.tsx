@@ -2,16 +2,18 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilter } from "@/contexts/FilterContext";
-import { devicesApi, locationsApi, sharedLinksApi, anprSessionsApi } from "@/services/api";
+import { devicesApi, locationsApi, sharedLinksApi, anprSessionsApi, vehicleMovementsApi } from "@/services/api";
 import { usePolling } from "@/hooks/usePolling";
 import CrudDialog from "@/components/CrudDialog";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
 import {
   MapPin, ParkingSquare,
   RefreshCw, Camera, CircleCheck, Car, Ban, Bike,
-  Eye, Image as ImageIcon, Loader2,
+  Eye, Image as ImageIcon, Loader2, ArrowDownToLine, ArrowUpFromLine,
+  ArrowLeftRight, ChevronRight,
 } from "lucide-react";
-import type { Device, Location, CanvasResponse, CanvasCamera, SharedLink, AnprReport } from "@/types/api";
+import type { Device, Location, CanvasResponse, CanvasCamera, SharedLink, AnprReport, VehicleMovementSummary } from "@/types/api";
+import RequirePermission from "@/components/RequirePermission";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -82,6 +84,7 @@ export default function Dashboard() {
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
   // ANPR (Prahaladnagar MLP) aggregate — 2nd data source for the Camera Overview.
   const [anprReport, setAnprReport] = useState<AnprReport | null>(null);
+  const [flowSummary, setFlowSummary] = useState<VehicleMovementSummary | null>(null);
   const [mlpLocation, setMlpLocation] = useState<Location | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -131,6 +134,17 @@ export default function Dashboard() {
         const { data: report } = await anprSessionsApi.report(reportParams);
         setAnprReport(report);
       } catch { setAnprReport(null); }
+
+      // 3rd source: the Vehicle In / Out module — today's entry/exit totals.
+      // quick_range is resolved server-side in IST; page_size=1 because only the
+      // `summary` block is wanted here, not the rows.
+      const flowParams = new URLSearchParams({ quick_range: "today", page: "1", page_size: "1" });
+      if (locationId) flowParams.set("location_id", locationId);
+      else if (areaId) flowParams.set("area_id", areaId);
+      try {
+        const { data: flow } = await vehicleMovementsApi.list(flowParams.toString());
+        setFlowSummary(flow.summary);
+      } catch { setFlowSummary(null); }
     } finally {
       setLoading(false);
     }
@@ -202,6 +216,12 @@ export default function Dashboard() {
   const anprCarTotal = mlp ? mlp.car.total : 0;
   const anpr2wTotal = mlp ? mlp.bike.total : 0;
 
+  // Vehicle In / Out module — today's entry and exit totals. `net` comes straight
+  // from the API and may be negative, which is meaningful; don't clamp it.
+  const flowIn = flowSummary?.total_in ?? 0;
+  const flowOut = flowSummary?.total_out ?? 0;
+  const flowNet = flowSummary?.net ?? 0;
+
   // KPI cards / Totals row = AI Parking (slots) + ANPR/MLP (IN−OUT) combined.
   const kpiCarOcc = occCar + anprCarOcc;
   const kpiCarAvail = availCar + anprCarAvail;
@@ -251,6 +271,46 @@ export default function Dashboard() {
         <StatCard label="2W Total" value={kpi2wTotal} icon={Bike} bg="bg-indigo-50" text="text-indigo-600" />
         <StatCard label="Obstructed" value={slotsObstructed} icon={Ban} bg="bg-amber-50" text="text-amber-600" />
       </div>
+
+      {/* Vehicle In / Out — its own band so it reads as a separate module, not
+          another slot metric. The whole card opens the full screen. */}
+      <RequirePermission permission="vehicle_movements:view">
+      <button
+        onClick={() => navigate("/vehicle-movements")}
+        className="w-full text-left bg-white rounded-2xl card-shadow p-5 mb-8 border border-slate-100 hover:border-teal-200 transition-lift hover:card-shadow-hover group"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center">
+              <ArrowLeftRight size={16} className="text-teal-600" />
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-slate-800">Vehicle In / Out</p>
+              <p className="text-[11px] text-slate-400">Today's entries and exits</p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-[12px] font-semibold text-slate-400 group-hover:text-teal-600 transition-colors">
+            View details <ChevronRight size={14} />
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "In", value: flowIn, icon: ArrowDownToLine, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
+            { label: "Out", value: flowOut, icon: ArrowUpFromLine, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+            { label: "Still Inside", value: flowNet, icon: Car, border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700" },
+          ].map(({ label, value, icon: Icon, border, bg, text }) => (
+            <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Icon size={12} className={text} />
+                <p className="text-[11px] font-semibold text-slate-500">{label}</p>
+              </div>
+              <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+      </button>
+      </RequirePermission>
 
       {/* Camera Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-8">

@@ -6,6 +6,7 @@ import type {
   SharedLink, PublicViewResponse,
   AnprRecord, AnprSession, AnprDashboardSummary, AnprDashboardLocation,
   AnprCameraConfig, ParkingScan, OccupancySummary, AnprReport,
+  VehicleMovement, VehicleMovementListResponse,
 } from "@/types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -293,6 +294,14 @@ export const parkingHistoryApi = {
   exportCsvUrl: (params?: string) => `/parking-history/export-csv?${params || ""}`,
   exportExcelUrl: (params?: string) => `/parking-history/export-excel?${params || ""}`,
   exportPdfUrl: (params?: string) => `/parking-history/export-pdf?${params || ""}`,
+};
+
+// ─── Vehicle Movements (In / Out) ───
+// The list response carries `summary` (totals for the whole filtered window), so a
+// separate summary request is neither needed nor available.
+export const vehicleMovementsApi = {
+  list: (params?: string) => api.get<VehicleMovementListResponse>(`/vehicle-movements?${params || ""}`),
+  get: (id: string) => api.get<VehicleMovement>(`/vehicle-movements/${id}`),
 };
 
 /** Download a file via authenticated axios request and trigger browser save. */

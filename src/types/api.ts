@@ -498,6 +498,51 @@ export interface ParkingScan {
   device_name: string | null;
 }
 
+// ─── Vehicle Movements (In / Out) ───
+// A standalone module: /api/v1/vehicle-movements. Counts vehicle entries and exits
+// without requiring a plate, so a site can be counted by a beam, loop, line-cross or
+// an operator. Unrelated to the AI Parking slot counts above and to ANPR below.
+export type MovementDirection = "IN" | "OUT";
+
+/** One row = one single movement (a single IN or a single OUT), not a period total. */
+export interface VehicleMovement {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  location_id: string;
+  location_name: string | null;
+  camera_id: string | null;
+  camera_label: string | null;
+  device_id: string | null;
+  vehicle_type: "CAR" | "TWO_WHEELER";
+  direction: MovementDirection;
+  number_plate: string | null;
+  /** UTC, ISO 8601 with Z. When the vehicle moved, not when the row was written. */
+  recorded_at: string;
+  /** Derived from direction: 1 when IN, else 0. */
+  in_count: number;
+  /** Derived from direction: 1 when OUT, else 0. */
+  out_count: number;
+}
+
+/** Totals for the whole filtered window, not just the current page. */
+export interface VehicleMovementSummary {
+  total_in: number;
+  total_out: number;
+  /** total_in − total_out. Negative is normal for a window that opens mid-day. */
+  net: number;
+}
+
+/** Not a PaginatedResponse — this one carries `summary` alongside the page. */
+export interface VehicleMovementListResponse {
+  items: VehicleMovement[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  summary: VehicleMovementSummary;
+}
+
 // ─── Parking occupancy summary (latest scan per location, summed) ───
 /** Hourly occupancy bucket (10 AM-6 PM) + summary stats for the AI Parking shared-link report. */
 export interface ParkingHourlyBucket {
