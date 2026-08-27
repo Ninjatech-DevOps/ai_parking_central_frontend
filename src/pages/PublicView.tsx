@@ -35,11 +35,27 @@ function hasField(vc: ViewConfig | null, page: string, field: string): boolean {
   return vc.fields[page].includes(field);
 }
 
+// Lower bound for the "show all historical data" link setting. The API defaults
+// to today when no range is given, so that setting needs an explicit start or it
+// silently becomes today-only.
+const ALL_HISTORY_START = "2020-01-01";
+
+/** Today, as a plain YYYY-MM-DD date for both ends of the window.
+ *
+ *  The API derives the 10 AM - 7 PM IST operating window from the DATE alone, so
+ *  a time component is discarded -- and sending one is actively harmful here: an
+ *  ISO instant built from browser-local time can resolve to a different day in
+ *  IST, and the previous "+1 day" end bound now reads as a second day of data. */
 function getTodayRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start.getTime() + 86400000);
-  return { start: start.toISOString(), end: end.toISOString() };
+  const n = new Date();
+  const d = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  return { start: d, end: d };
+}
+
+/** Wall-clock hour in IST, independent of the viewer's timezone.
+ *  Fixed +5:30 offset, matching the API (IST has no DST). */
+function istHour(iso: string): number {
+  return new Date(new Date(iso).getTime() + 5.5 * 3600_000).getUTCHours();
 }
 
 function PublicViewSkeleton() {
@@ -239,7 +255,7 @@ function AnprDashboardTab({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    try { const { data: d } = await publicViewApi.anprDashboard(token); setData(d); } catch { /* */ }
+    try { const { data: d } = await publicViewApi.anprDashboard(token); setData(d); } catch (err) { console.error("[public view] request failed", err); }
     setLoading(false);
   }, [token]);
 
@@ -316,8 +332,26 @@ function hourLabelFull(h: number): string {
   return `${h - 12} PM`;
 }
 
+/** The hour RANGE a bar covers: "10-11am", "11am-12pm", "6-7pm".
+ *
+ *  Buckets are keyed by the hour they start, so labelling them by that alone
+ *  makes the axis stop at "6pm" even though the last bar runs to 18:59 — the
+ *  10 AM - 7 PM window reads as though it ends an hour early. The meridiem is
+ *  printed once when both ends share it, and on both when they differ (only
+ *  11am-12pm does). */
+function hourRangeLabel(h: number): string {
+  const from = hourLabel(h);
+  const to = hourLabel((h + 1) % 24);
+  const meridiem = (s: string) => s.slice(-2);
+  return meridiem(from) === meridiem(to) ? `${from.slice(0, -2)}-${to}` : `${from}-${to}`;
+}
+
 /** Client-side fallback for the AI Parking report — mirrors the backend's
- *  build_parking_report so the chart/stats render even if the API omits `report`. */
+ *  build_parking_report so the chart/stats render even if the API omits `report`.
+ *
+ *  Hours 10..18 cover 10:00-18:59, i.e. the full 10 AM - 7 PM operating window:
+ *  a bucket is labelled by the hour it STARTS, so the last one ("6 PM") holds
+ *  everything up to 18:59. Same range as the backend's `range(10, 19)`. */
 function computeParkingReport(scans: ParkingScan[]): ParkingReport {
   const hourly: ParkingReport["hourly"] = [];
   for (let h = 10; h <= 18; h++) {
@@ -325,8 +359,9 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
     let bestOcc = -1;
     for (const s of scans) {
       if (!s.recorded_at) continue;
-      const d = new Date(s.recorded_at);
-      if (d.getHours() === h) {
+      // IST, not the viewer's timezone — otherwise a viewer outside India
+      // buckets every scan into the wrong bar.
+      if (istHour(s.recorded_at) === h) {
         const occ = s.car_occupied + s.two_wheeler_occupied;
         if (occ > bestOcc) { bestOcc = occ; best = s; }
       }
@@ -376,6 +411,8 @@ function computeParkingReport(scans: ParkingScan[]): ParkingReport {
 function HourlyOccupancyChart({ hourly }: { hourly: ParkingReport["hourly"] }) {
   const max = Math.max(1, ...hourly.map((h) => h.occ_car), ...hourly.map((h) => h.occ_bike));
   const hasData = hourly.some((h) => h.occ_car > 0 || h.occ_bike > 0);
+  // First hour mark on the axis; the API opens the window at 10 AM.
+  const baseHour = hourly[0]?.hour ?? 10;
   return (
     <div className="bg-white rounded-2xl card-shadow p-6 h-full">
       <div className="mb-6 flex items-start justify-between">
@@ -396,12 +433,18 @@ function HourlyOccupancyChart({ hourly }: { hourly: ParkingReport["hourly"] }) {
             <div key={i} className="flex-1 flex items-end justify-center gap-[3px] h-full group relative">
               <div className="w-1/2 max-w-[22px] bg-blue-500 rounded-t transition-all" style={{ height: `${(h.occ_car / max) * 100}%`, minHeight: h.occ_car > 0 ? 4 : 0 }} />
               <div className="w-1/2 max-w-[22px] bg-indigo-500 rounded-t transition-all" style={{ height: `${(h.occ_bike / max) * 100}%`, minHeight: h.occ_bike > 0 ? 4 : 0 }} />
-              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">{hourLabel(h.hour)}: Car {h.occ_car} · 2W {h.occ_bike}</div>
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">{hourRangeLabel(h.hour)}: Car {h.occ_car} · 2W {h.occ_bike}</div>
             </div>
           ))}
         </div>
-        <div className="flex gap-3 mt-2">
-          {hourly.map((h, i) => <div key={i} className="flex-1 text-center text-[12px] font-medium text-slate-400">{hourLabel(h.hour)}</div>)}
+        {/* Hour MARKS, not bar labels: the nine bars sit between ten marks, so
+            the axis runs 10am ... 7pm and the end of the window is visible.
+            Labelling each bar by its start hour instead would stop the axis at
+            "6pm", making a window that reaches 18:59 look an hour short. */}
+        <div className="flex justify-between mt-2 text-[11px] font-medium text-slate-400">
+          {Array.from({ length: hourly.length + 1 }, (_, i) => (
+            <span key={i} className="whitespace-nowrap">{hourLabel(baseHour + i)}</span>
+          ))}
         </div>
       </>)}
     </div>
@@ -463,16 +506,22 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
       const win = new URLSearchParams(); // window shared by the table + report (chart/stats)
+      // The API clips every day to the 10 AM - 7 PM operating window itself, so
+      // all we choose here is WHICH days. Sampling stays on the single-day view
+      // only, where the table would otherwise be one row per scan.
       if (dateFilter === "today") {
-        // Show only 10 AM – 6 PM, sampled every 5 min
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
-        p.set("start_date", todayStart.toISOString());
-        p.set("end_date", todayEnd.toISOString());
+        const { start, end } = getTodayRange();
+        p.set("start_date", start);
+        p.set("end_date", end);
         p.set("interval_minutes", "5");
-        win.set("start_date", todayStart.toISOString());
-        win.set("end_date", todayEnd.toISOString());
+        win.set("start_date", start);
+        win.set("end_date", end);
+      } else {
+        const { end } = getTodayRange();
+        p.set("start_date", ALL_HISTORY_START);
+        p.set("end_date", end);
+        win.set("start_date", ALL_HISTORY_START);
+        win.set("end_date", end);
       }
       const [scanRes, summaryRes] = await Promise.all([
         publicViewApi.parkingHistory(token, p.toString()),
@@ -489,8 +538,16 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
       if (!report) {
         try {
           const allP = new URLSearchParams(win);
-          allP.set("page_size", "100"); // endpoint caps at 100; 96 five-min samples cover 10 AM-6 PM
-          if (dateFilter === "today") allP.set("interval_minutes", "5");
+          // Best-effort only. The endpoint hard-caps page_size at 100 and returns
+          // newest-first, so anything past 100 rows loses the EARLIEST buckets.
+          // Sampling is per (camera, bucket): 10 AM - 7 PM is 90 buckets at
+          // 6-minute sampling (108 at 5), so this fits one camera and overflows
+          // on a multi-camera location no matter the interval.
+          //
+          // Not worth paginating for: this branch only runs if the API omitted
+          // `report`, which it never does — occupancy-summary always returns one.
+          allP.set("page_size", "100");
+          if (dateFilter === "today") allP.set("interval_minutes", "6");
           const allRes = await publicViewApi.parkingHistory(token, allP.toString());
           report = computeParkingReport(allRes.data.items || []);
         } catch { /* leave report undefined */ }
@@ -498,7 +555,7 @@ function ParkingHistoryTab({ token, viewConfig }: { token: string; viewConfig: V
 
       const s = summaryRes.data;
       setSummary({ ...s, report });
-    } catch { /* */ }
+    } catch (err) { console.error("[public view] request failed", err); }
     setLoading(false);
   }, [token, page]);
 
@@ -641,13 +698,17 @@ function AnprRecordsTab({ token, viewConfig }: { token: string; viewConfig: View
         const { start, end } = getTodayRange();
         p.set("start_date", start);
         p.set("end_date", end);
+      } else {
+        const { end } = getTodayRange();
+        p.set("start_date", ALL_HISTORY_START);
+        p.set("end_date", end);
       }
       if (plateSearch) p.set("number_plate", plateSearch);
       const { data } = await publicViewApi.anprRecords(token, p.toString());
       setRecords(data.items || []);
       setTotal(data.total || 0);
       setTotalPages(data.total_pages || 0);
-    } catch { /* */ }
+    } catch (err) { console.error("[public view] request failed", err); }
     setLoading(false);
   }, [token, page, plateSearch]);
 
@@ -786,13 +847,15 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
     try {
       const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
       const win = new URLSearchParams(); // date window shared by the table + report
+      // Days only — the API clips each one to the 10 AM - 7 PM operating window.
       if (dateFilter === "today") {
-        // 10 AM – 6 PM only
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
-        win.set("start_date", todayStart.toISOString());
-        win.set("end_date", todayEnd.toISOString());
+        const { start, end } = getTodayRange();
+        win.set("start_date", start);
+        win.set("end_date", end);
+      } else {
+        const { end } = getTodayRange();
+        win.set("start_date", ALL_HISTORY_START);
+        win.set("end_date", end);
       }
       win.forEach((v, k) => p.set(k, v));
       if (plateSearch) p.set("number_plate", plateSearch);
@@ -806,7 +869,7 @@ function AnprHistoryTab({ token, viewConfig }: { token: string; viewConfig: View
       setTotal(sessRes.data.total || 0);
       setTotalPages(sessRes.data.total_pages || 0);
       setReport(dashRes.data?.report || null);
-    } catch { /* */ }
+    } catch (err) { console.error("[public view] request failed", err); }
     setLoading(false);
   }, [token, page, plateSearch]);
 

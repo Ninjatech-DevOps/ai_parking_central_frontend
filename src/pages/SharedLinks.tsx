@@ -610,7 +610,9 @@ export default function SharedLinks() {
               ))}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              {formDateFilter === "today" ? "Public view will only show today's records" : "Public view will show all historical data"}
+              {formDateFilter === "today"
+                ? "Public view will show today's records, 10 AM – 7 PM"
+                : "Public view will show all historical data, 10 AM – 7 PM each day"}
             </p>
           </div>
 
