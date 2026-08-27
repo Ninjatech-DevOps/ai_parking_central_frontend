@@ -6,27 +6,21 @@ import Pagination from "@/components/Pagination";
 import { ArrowDownToLine, ArrowUpFromLine, Loader2, Clock, AlertTriangle, Car, Bike, Upload, FileSpreadsheet } from "lucide-react";
 import RequirePermission from "@/components/RequirePermission";
 import CrudDialog from "@/components/CrudDialog";
-import { showSuccess, showError } from "@/lib/toast";
+import { showSuccess, showError, showWarning } from "@/lib/toast";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
-import type { VehicleMovement, VehicleMovementSummary, VehicleMovementImportResult, Location } from "@/types/api";
+import type { VehicleMovement, VehicleMovementSummary, Location } from "@/types/api";
 import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
 
 function VehicleMovementsSkeleton() {
   return (
     <SkeletonShell>
       <SkeletonHeader action />
-      <div className="space-y-4 mb-6 animate-pulse">
-        {[0, 1].map((g) => (
-          <div key={g}>
-            <Skel className="w-24 h-4 mb-2" />
-            <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="rounded-xl border border-slate-100 p-4">
-                  <Skel className="w-16 h-3 mb-2" />
-                  <Skel className="w-14 h-7" />
-                </div>
-              ))}
-            </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 animate-pulse">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-slate-100 p-4">
+            <Skel className="w-20 h-3 mb-2" />
+            <Skel className="w-12 h-3 mb-2" />
+            <Skel className="w-14 h-7" />
           </div>
         ))}
       </div>
@@ -74,27 +68,27 @@ export default function VehicleMovements() {
   // Applied filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [quickRange, setQuickRange] = useState("today");
+  const [quickRange, setQuickRange] = useState("yesterday");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
   // Draft filters — copied onto the applied ones only when Apply is pressed
-  const [draftRange, setDraftRange] = useState("today");
+  const [draftRange, setDraftRange] = useState("yesterday");
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
 
-  // Excel import
+  // Excel import — hidden unless ?import is in the URL, same convention as the
+  // ?edit / ?delete flags on the Parking History screen.
+  const showImport = new URLSearchParams(window.location.search).has("import");
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importDate, setImportDate] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<VehicleMovementImportResult | null>(null);
   const [importLocations, setImportLocations] = useState<Location[]>([]);
   const [importLocationId, setImportLocationId] = useState("");
 
   function openImport() {
     setImportFile(null);
-    setImportResult(null);
     setImportLocationId("");
     // Default to today, in the local date format the input expects.
     const now = new Date();
@@ -122,11 +116,13 @@ export default function VehicleMovements() {
     // `report_date`, not the filename — an export template can be stale.
     form.append("report_date", importDate);
     setImporting(true);
-    setImportResult(null);
     try {
       const { data } = await vehicleMovementsApi.importExcel(form);
-      setImportResult(data);
-      showSuccess(`Imported ${data.imported} movement${data.imported === 1 ? "" : "s"}.`);
+      setImportOpen(false);
+      showSuccess(`Imported successfully — ${data.imported} movement${data.imported === 1 ? "" : "s"} for ${data.report_date}.`);
+      // The sheet's own Total row can disagree with its rows; don't lose that
+      // just because the dialog closed.
+      if (data.warnings?.length) showWarning(data.warnings[0]);
       fetchData();
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -145,11 +141,11 @@ export default function VehicleMovements() {
     setPage(1); setFiltersOpen(false);
   }
   function resetFilters() {
-    setQuickRange("today"); setCustomFrom(""); setCustomTo("");
+    setQuickRange("yesterday"); setCustomFrom(""); setCustomTo("");
     setPage(1);
   }
   function clearDraft() {
-    setDraftRange("today"); setDraftFrom(""); setDraftTo("");
+    setDraftRange("yesterday"); setDraftFrom(""); setDraftTo("");
     resetFilters();
   }
 
@@ -197,7 +193,7 @@ export default function VehicleMovements() {
 
   const activeFilterCount =
     [customFrom, customTo].filter(Boolean).length +
-    (quickRange !== "today" ? 1 : 0);
+    (quickRange !== "yesterday" ? 1 : 0);
 
   if (loading && records.length === 0 && !error) return <VehicleMovementsSkeleton />;
 
@@ -210,11 +206,22 @@ export default function VehicleMovements() {
 
   const isLive = quickRange === "today" && !customFrom && !customTo;
 
-  // Cards are grouped per vehicle type, all from the one list response.
-  const cardGroups = [
-    { title: "Cars", icon: Car, totals: summary?.car },
-    { title: "Two Wheeler", icon: Bike, totals: summary?.two_wheeler },
-  ];
+  // Four cards on one row. Two dimensions are encoded separately so both read at
+  // a glance: the left accent bar is the vehicle type, the fill and number colour
+  // are the direction.
+  const cards = [
+    { vehicle: "Cars", icon: Car, accent: "border-l-blue-400", dir: "In", value: summary?.car.total_in },
+    { vehicle: "Cars", icon: Car, accent: "border-l-blue-400", dir: "Out", value: summary?.car.total_out },
+    { vehicle: "Two Wheeler", icon: Bike, accent: "border-l-indigo-400", dir: "In", value: summary?.two_wheeler.total_in },
+    { vehicle: "Two Wheeler", icon: Bike, accent: "border-l-indigo-400", dir: "Out", value: summary?.two_wheeler.total_out },
+  ].map((c) => ({
+    ...c,
+    key: `${c.vehicle}-${c.dir}`,
+    dirIcon: c.dir === "In" ? ArrowDownToLine : ArrowUpFromLine,
+    border: c.dir === "In" ? "border-emerald-200" : "border-amber-200",
+    bg: c.dir === "In" ? "bg-emerald-50" : "bg-amber-50",
+    text: c.dir === "In" ? "text-emerald-600" : "text-amber-600",
+  }));
 
   return (
     <div className="w-full">
@@ -227,6 +234,7 @@ export default function VehicleMovements() {
           </div>
           <p className="text-[13px] text-slate-400 mt-0.5">Vehicle movements — one row per entry or exit</p>
         </div>
+        {showImport && (
         <RequirePermission permission="vehicle_movements:create">
           <button
             onClick={openImport}
@@ -235,6 +243,7 @@ export default function VehicleMovements() {
             <Upload size={12} /> Import Excel
           </button>
         </RequirePermission>
+        )}
       </div>
 
       {error ? (
@@ -250,42 +259,27 @@ export default function VehicleMovements() {
       {/* Summary cards — totals for the whole filtered window, not this page,
           split by vehicle type. */}
       {summary === null ? (
-        <div className="space-y-4 mb-6 animate-pulse">
-          {[0, 1].map((g) => (
-            <div key={g}>
-              <Skel className="w-24 h-4 mb-2" />
-              <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="rounded-xl border border-slate-100 p-4">
-                    <Skel className="w-16 h-3 mb-2" />
-                    <Skel className="w-14 h-7" />
-                  </div>
-                ))}
-              </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 animate-pulse">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-slate-100 p-4">
+              <Skel className="w-20 h-3 mb-2" />
+              <Skel className="w-12 h-3 mb-2" />
+              <Skel className="w-14 h-7" />
             </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-4 mb-6">
-          {cardGroups.map(({ title, icon: GroupIcon, totals }) => (
-            <div key={title}>
-              <p className="flex items-center gap-1.5 text-[14px] font-bold text-slate-800 mb-2">
-                <GroupIcon size={14} className="text-slate-400" /> {title}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {cards.map(({ key, vehicle, icon: VehicleIcon, accent, dir, value, dirIcon: DirIcon, border, bg, text }) => (
+            <div key={key} className={`rounded-xl border border-l-4 ${accent} ${border} ${bg} p-4`}>
+              <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1.5">
+                <VehicleIcon size={13} className="text-slate-400" /> {vehicle}
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "In", value: totals?.total_in ?? 0, icon: ArrowDownToLine, border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-600" },
-                  { label: "Out", value: totals?.total_out ?? 0, icon: ArrowUpFromLine, border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
-                ].map(({ label, value, icon: Icon, border, bg, text }) => (
-                  <div key={label} className={`rounded-xl border ${border} ${bg} p-4`}>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Icon size={12} className={text} />
-                      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-                    </div>
-                    <p className={`text-[28px] font-bold leading-none ${text}`}>{value}</p>
-                  </div>
-                ))}
+              <div className="flex items-center gap-1.5 mb-1">
+                <DirIcon size={12} className={text} />
+                <p className={`text-[11px] font-semibold ${text}`}>{dir}</p>
               </div>
+              <p className={`text-[28px] font-bold leading-none ${text}`}>{value ?? 0}</p>
             </div>
           ))}
         </div>
@@ -412,7 +406,7 @@ export default function VehicleMovements() {
             <input
               type="file"
               accept=".xlsx,.xlsm"
-              onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }}
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
               className="w-full text-[12px] text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border file:border-slate-200 file:bg-white file:text-[12px] file:font-semibold file:text-slate-600 hover:file:bg-slate-50 file:cursor-pointer"
             />
             <p className="text-[11px] text-slate-400 mt-1">.xlsx or .xlsm, up to 8 MB. One sheet per vehicle type.</p>
@@ -422,31 +416,6 @@ export default function VehicleMovements() {
               </p>
             )}
           </div>
-
-          {importResult && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[12px] font-semibold text-slate-700">
-                Imported {importResult.imported} movement{importResult.imported === 1 ? "" : "s"} for {importResult.report_date}
-                {importResult.replaced > 0 && ` · replaced ${importResult.replaced}`}
-              </p>
-              {importResult.sheets?.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5">
-                  {importResult.sheets.map((s) => (
-                    <li key={s.sheet} className="text-[11px] text-slate-500">
-                      {s.sheet}: In {s.total_in} · Out {s.total_out} · {s.movements} movements from {s.rows_read} rows
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {importResult.warnings?.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5 max-h-28 overflow-auto">
-                  {importResult.warnings.map((w, i) => (
-                    <li key={i} className="text-[11px] text-amber-600">{w}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
 
           <div className="flex items-center justify-end gap-2 pt-1">
             <button
