@@ -6,7 +6,7 @@ import type {
   SharedLink, PublicViewResponse,
   AnprRecord, AnprSession, AnprDashboardSummary, AnprDashboardLocation,
   AnprCameraConfig, ParkingScan, OccupancySummary, AnprReport,
-  VehicleMovement, VehicleMovementListResponse,
+  VehicleMovement, VehicleMovementListResponse, VehicleMovementImportResult,
 } from "@/types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -302,6 +302,16 @@ export const parkingHistoryApi = {
 export const vehicleMovementsApi = {
   list: (params?: string) => api.get<VehicleMovementListResponse>(`/vehicle-movements?${params || ""}`),
   get: (id: string) => api.get<VehicleMovement>(`/vehicle-movements/${id}`),
+  /**
+   * Upload an Excel sheet of movements. The backend parses the file; the date and
+   * location travel in the payload rather than being read out of the sheet.
+   * Content-Type is cleared so the browser sets multipart boundary itself — the
+   * shared instance otherwise forces application/json.
+   */
+  importExcel: (form: FormData) =>
+    api.post<VehicleMovementImportResult>("/vehicle-movements/import", form, {
+      headers: { "Content-Type": undefined },
+    }),
 };
 
 /** Download a file via authenticated axios request and trigger browser save. */

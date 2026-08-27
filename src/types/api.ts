@@ -525,12 +525,44 @@ export interface VehicleMovement {
   out_count: number;
 }
 
+/** In/Out/net for one vehicle type. `car` + `two_wheeler` sum to the combined figures. */
+export interface VehicleMovementTypeTotals {
+  total_in: number;
+  total_out: number;
+  net: number;
+}
+
 /** Totals for the whole filtered window, not just the current page. */
 export interface VehicleMovementSummary {
   total_in: number;
   total_out: number;
   /** total_in − total_out. Negative is normal for a window that opens mid-day. */
   net: number;
+  car: VehicleMovementTypeTotals;
+  two_wheeler: VehicleMovementTypeTotals;
+}
+
+/** Per-sheet breakdown returned by the Excel import. */
+export interface VehicleMovementImportSheet {
+  sheet: string;
+  vehicle_type: string;
+  total_in: number;
+  total_out: number;
+  movements: number;
+  rows_read: number;
+}
+
+/** Outcome of an Excel import. A row with both In and Out counts as two movements. */
+export interface VehicleMovementImportResult {
+  success: boolean;
+  location_id: string;
+  report_date: string;
+  imported: number;
+  /** Rows deleted first — 0 unless `replace` was sent. */
+  replaced: number;
+  sheets: VehicleMovementImportSheet[];
+  /** Skipped rows, and any disagreement with the sheet's own Total row. */
+  warnings: string[];
 }
 
 /** Not a PaginatedResponse — this one carries `summary` alongside the page. */
