@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { AnprSession, AnprReport } from "@/types/api";
+import { DEFAULT_ANPR_DATE_RANGE, isDefaultDateRange } from "@/lib/utils";
 import { Skel, SkeletonTable } from "@/components/Skeleton";
 
 /** Tinted bordered summary card (label + big value). */
@@ -142,13 +143,16 @@ export default function AnprHistory() {
   const [vehicleType, setVehicleType] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [datePreset, setDatePreset] = useState("today");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  // Opens on the fixed default window (see DEFAULT_ANPR_DATE_RANGE) rather
+  // than "today". A custom range takes precedence over the preset in every
+  // param builder below, including the exports.
+  const [customFrom, setCustomFrom] = useState<string>(DEFAULT_ANPR_DATE_RANGE.from);
+  const [customTo, setCustomTo] = useState<string>(DEFAULT_ANPR_DATE_RANGE.to);
   const [sortKey, setSortKey] = useState<string>("out_new");
   // Draft (committed on Apply Filters)
   const [draftPreset, setDraftPreset] = useState("today");
-  const [draftFrom, setDraftFrom] = useState("");
-  const [draftTo, setDraftTo] = useState("");
+  const [draftFrom, setDraftFrom] = useState<string>(DEFAULT_ANPR_DATE_RANGE.from);
+  const [draftTo, setDraftTo] = useState<string>(DEFAULT_ANPR_DATE_RANGE.to);
   const [draftType, setDraftType] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
 
@@ -272,11 +276,18 @@ export default function AnprHistory() {
     setPage(1); setFiltersOpen(false);
   }
   function clearFilters() {
-    setDraftPreset("today"); setDraftFrom(""); setDraftTo(""); setDraftType(""); setDraftStatus("");
-    setDatePreset("today"); setCustomFrom(""); setCustomTo(""); setVehicleType(""); setStatusFilter(""); setPage(1);
+    // "Clear" returns to the default window, not to an empty range.
+    const { from, to } = DEFAULT_ANPR_DATE_RANGE;
+    setDraftPreset("today"); setDraftFrom(from); setDraftTo(to); setDraftType(""); setDraftStatus("");
+    setDatePreset("today"); setCustomFrom(from); setCustomTo(to); setVehicleType(""); setStatusFilter(""); setPage(1);
   }
 
-  const activeFilterCount = [vehicleType, statusFilter, customFrom, customTo].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+  // The default window is the resting state, not a filter the user applied,
+  // so it must not light the Filters badge.
+  const activeFilterCount =
+    [vehicleType, statusFilter].filter(Boolean).length +
+    (isDefaultDateRange(customFrom, customTo, DEFAULT_ANPR_DATE_RANGE) ? 0 : [customFrom, customTo].filter(Boolean).length) +
+    (datePreset !== "today" ? 1 : 0);
   const isLive = datePreset === "today" && !customFrom && !customTo;
 
   async function handleDelete(id: string) {

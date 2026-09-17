@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { ParkingScan, OccupancySummary, Camera } from "@/types/api";
+import { DEFAULT_DATE_RANGE, isDefaultDateRange } from "@/lib/utils";
 import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
 
 function ParkingScanHistorySkeleton() {
@@ -178,8 +179,11 @@ export default function ParkingScanHistory() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState("today");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  // Opens on the shared default window rather than "today", so this page and
+  // Vehicle In / Out describe the same period out of the box. A custom range
+  // takes precedence over the preset everywhere below.
+  const [customFrom, setCustomFrom] = useState<string>(DEFAULT_DATE_RANGE.from);
+  const [customTo, setCustomTo] = useState<string>(DEFAULT_DATE_RANGE.to);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
   // Close image preview on Escape key
@@ -193,8 +197,8 @@ export default function ParkingScanHistory() {
   }, [previewImg]);
 
   const [draftPreset, setDraftPreset] = useState("today");
-  const [draftFrom, setDraftFrom] = useState("");
-  const [draftTo, setDraftTo] = useState("");
+  const [draftFrom, setDraftFrom] = useState<string>(DEFAULT_DATE_RANGE.from);
+  const [draftTo, setDraftTo] = useState<string>(DEFAULT_DATE_RANGE.to);
   const [draftCamera, setDraftCamera] = useState("");
 
   // Camera list for the active location. One request covers every device there.
@@ -219,7 +223,8 @@ export default function ParkingScanHistory() {
     setDatePreset(draftPreset); setCustomFrom(draftFrom); setCustomTo(draftTo); setCameraId(draftCamera); setPage(1); setFiltersOpen(false);
   }
   function clearDraft() {
-    setDraftPreset("today"); setDraftFrom(""); setDraftTo(""); setDraftCamera("");
+    // "Clear" returns to the default window, not to an empty range.
+    setDraftPreset("today"); setDraftFrom(DEFAULT_DATE_RANGE.from); setDraftTo(DEFAULT_DATE_RANGE.to); setDraftCamera("");
     resetFilters();
   }
 
@@ -262,12 +267,13 @@ export default function ParkingScanHistory() {
   // Occupancy summary cards (latest scan per camera, summed).
   //
   // Follows the same scope AND date filter as the table below, so the two
-  // always describe the same period. The one exception is the default "today"
-  // preset: no dates are sent then, so the backend stays in its "live" mode
-  // and only counts cameras that have scanned in the last few minutes — a
-  // site that is down reads 0 / 0 instead of its last reading of the day.
-  // Any other preset or a custom range puts the backend in "range" mode:
-  // each camera's last reading inside that window, exactly what the rows show.
+  // always describe the same period. The page opens on DEFAULT_DATE_RANGE, so
+  // by default dates ARE sent and the backend is in "range" mode: each
+  // camera's last reading inside that window, exactly what the rows show.
+  // Only if the user clears the range and picks the "today" preset are no
+  // dates sent — the backend then drops to its "live" mode and counts only
+  // cameras that scanned in the last few minutes, so a site that is down
+  // reads 0 / 0 instead of its last reading of the day.
   //
   // Camera IS included: without it the cards would total the whole location
   // while the rows below show a single camera. Interval is not: it only
@@ -295,11 +301,16 @@ export default function ParkingScanHistory() {
   useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, cameraId, intervalMin]);
 
   function resetFilters() {
-    setDatePreset("today"); setCustomFrom(""); setCustomTo(""); setCameraId("");
+    setDatePreset("today"); setCustomFrom(DEFAULT_DATE_RANGE.from); setCustomTo(DEFAULT_DATE_RANGE.to); setCameraId("");
     setPage(1);
   }
 
-  const activeFilterCount = [customFrom, customTo, cameraId].filter(Boolean).length + (datePreset !== "today" ? 1 : 0);
+  // The default window is the resting state, not a filter the user applied,
+  // so it must not light the Filters badge.
+  const activeFilterCount =
+    (isDefaultDateRange(customFrom, customTo) ? 0 : [customFrom, customTo].filter(Boolean).length) +
+    (cameraId ? 1 : 0) +
+    (datePreset !== "today" ? 1 : 0);
 
   // Inline-edit a scan's count; persist to backend and update the row in place.
   async function handleCellSave(id: string, field: string, val: number | string) {

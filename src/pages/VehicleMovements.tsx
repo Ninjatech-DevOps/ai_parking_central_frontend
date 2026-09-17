@@ -7,6 +7,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Loader2, Clock, AlertTriangle, Car, B
 import RequirePermission from "@/components/RequirePermission";
 import CrudDialog from "@/components/CrudDialog";
 import { showSuccess, showError, showWarning } from "@/lib/toast";
+import { DEFAULT_DATE_RANGE, isDefaultDateRange } from "@/lib/utils";
 import { FilterToolbar, FilterPanel, FilterField, FilterSelect, FilterDateInput, LiveBadge } from "@/components/FilterPanel";
 import type { VehicleMovement, VehicleMovementSummary, Location } from "@/types/api";
 import { SkeletonShell, SkeletonHeader, SkeletonTable, Skel } from "@/components/Skeleton";
@@ -69,13 +70,16 @@ export default function VehicleMovements() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [quickRange, setQuickRange] = useState("yesterday");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  // Opens on the shared default window, the same one AI Parking History uses,
+  // so the two pages describe the same period out of the box. An explicit
+  // range beats quick_range in buildParams().
+  const [customFrom, setCustomFrom] = useState<string>(DEFAULT_DATE_RANGE.from);
+  const [customTo, setCustomTo] = useState<string>(DEFAULT_DATE_RANGE.to);
 
   // Draft filters — copied onto the applied ones only when Apply is pressed
   const [draftRange, setDraftRange] = useState("yesterday");
-  const [draftFrom, setDraftFrom] = useState("");
-  const [draftTo, setDraftTo] = useState("");
+  const [draftFrom, setDraftFrom] = useState<string>(DEFAULT_DATE_RANGE.from);
+  const [draftTo, setDraftTo] = useState<string>(DEFAULT_DATE_RANGE.to);
 
   // Excel import — hidden unless ?import is in the URL, same convention as the
   // ?edit / ?delete flags on the Parking History screen.
@@ -141,11 +145,12 @@ export default function VehicleMovements() {
     setPage(1); setFiltersOpen(false);
   }
   function resetFilters() {
-    setQuickRange("yesterday"); setCustomFrom(""); setCustomTo("");
+    // Reset returns to the default window, not to an empty range.
+    setQuickRange("yesterday"); setCustomFrom(DEFAULT_DATE_RANGE.from); setCustomTo(DEFAULT_DATE_RANGE.to);
     setPage(1);
   }
   function clearDraft() {
-    setDraftRange("yesterday"); setDraftFrom(""); setDraftTo("");
+    setDraftRange("yesterday"); setDraftFrom(DEFAULT_DATE_RANGE.from); setDraftTo(DEFAULT_DATE_RANGE.to);
     resetFilters();
   }
 
@@ -191,8 +196,10 @@ export default function VehicleMovements() {
   // header scope, which can change without the panel being opened.
   useEffect(() => { setPage(1); }, [areaId, locationId]);
 
+  // The default window is the resting state, not a filter the user applied,
+  // so it must not light the Filters badge.
   const activeFilterCount =
-    [customFrom, customTo].filter(Boolean).length +
+    (isDefaultDateRange(customFrom, customTo) ? 0 : [customFrom, customTo].filter(Boolean).length) +
     (quickRange !== "yesterday" ? 1 : 0);
 
   if (loading && records.length === 0 && !error) return <VehicleMovementsSkeleton />;
