@@ -608,6 +608,18 @@ export interface OccupancySummary {
   two_wheeler_total: number;
   two_wheeler_occupied: number;
   two_wheeler_available: number;
+  /** False when no camera in scope reported inside the window (today, for the
+   *  live tiles). Totals are still valid — they're configured capacity — but
+   *  Occupied / Available / % have nothing behind them and should render as a
+   *  dash, not as "0 occupied, everything free". Absent on older API builds. */
+  has_data?: boolean;
+  cameras_reporting?: number;
+  cameras_configured?: number;
   updated_at: string | null;
+  /** "live": only cameras that scanned in the last `max_scan_age_minutes`
+   *  count. "range": start/end dates were sent and each camera's last reading
+   *  inside them counts instead (max_scan_age_minutes is then null). */
+  mode?: "live" | "range";
+  max_scan_age_minutes?: number | null;
   report?: ParkingReport;
 }

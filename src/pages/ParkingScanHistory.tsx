@@ -259,12 +259,29 @@ export default function ParkingScanHistory() {
 
   usePolling(fetchData, 15000);
 
-  // Current occupancy summary (latest scan per location, summed) — scope only,
-  // so it ignores date/interval filters and stays "live". Same data as the PDF.
+  // Occupancy summary cards (latest scan per camera, summed).
+  //
+  // Follows the same scope AND date filter as the table below, so the two
+  // always describe the same period. The one exception is the default "today"
+  // preset: no dates are sent then, so the backend stays in its "live" mode
+  // and only counts cameras that have scanned in the last few minutes — a
+  // site that is down reads 0 / 0 instead of its last reading of the day.
+  // Any other preset or a custom range puts the backend in "range" mode:
+  // each camera's last reading inside that window, exactly what the rows show.
+  //
   // Camera IS included: without it the cards would total the whole location
-  // while the rows below show a single camera.
+  // while the rows below show a single camera. Interval is not: it only
+  // thins the rows, it does not change what the latest reading is.
   const fetchSummary = useCallback(async () => {
     const p = new URLSearchParams();
+    if (customFrom || customTo) {
+      if (customFrom) p.set("start_date", new Date(customFrom).toISOString());
+      if (customTo) p.set("end_date", new Date(customTo).toISOString());
+    } else if (datePreset && datePreset !== "today") {
+      const { start, end } = getPresetDates(datePreset);
+      if (start) p.set("start_date", start);
+      if (end) p.set("end_date", end);
+    }
     if (locationId) p.set("location_id", locationId);
     else if (areaId) p.set("area_id", areaId);
     if (cameraId) p.set("camera_id", cameraId);
@@ -272,7 +289,7 @@ export default function ParkingScanHistory() {
       const { data } = await parkingHistoryApi.occupancySummary(p.toString());
       setSummary(data);
     } catch { /* ignore */ }
-  }, [areaId, locationId, cameraId]);
+  }, [datePreset, customFrom, customTo, areaId, locationId, cameraId]);
 
   usePolling(fetchSummary, 15000);
   useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo, areaId, locationId, cameraId, intervalMin]);
