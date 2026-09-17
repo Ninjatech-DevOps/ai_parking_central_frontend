@@ -78,6 +78,11 @@ export default function Dashboard() {
 
   const [devices, setDevices] = useState<Device[]>([]);
   const [locationsList, setLocationsList] = useState<Location[]>([]);
+  // Every active location in scope, BEFORE the canvas filter below narrows
+  // `locationsList` to sites with a working camera. The "Locations" card reads
+  // this so it agrees with the Parking Locations page; a site whose only camera
+  // is switched off is still a location.
+  const [locationTotal, setLocationTotal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [canvasData, setCanvasData] = useState<CanvasResponse[]>([]);
   // ANPR (Prahaladnagar MLP) aggregate — 2nd data source for the Camera Overview.
@@ -111,6 +116,9 @@ export default function Dashboard() {
         ? (l.data.items || []).filter((loc) => loc.id === locationId)
         : (l.data.items || []);
       setLocationsList(locationsForCanvas);
+      // Unfiltered scope count. The API total is authoritative when the page
+      // isn't pinned to one location (items are capped at page_size=100).
+      setLocationTotal(locationId ? locationsForCanvas.length : (l.data.total ?? locationsForCanvas.length));
 
       const canvases = await Promise.all(
         locationsForCanvas.map((loc) => locationsApi.canvas(loc.id).then(({ data }) => data).catch(() => null))
@@ -241,7 +249,7 @@ export default function Dashboard() {
       <>
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Locations" value={locationsList.length} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
+        <StatCard label="Locations" value={locationTotal} icon={MapPin} bg="bg-violet-50" text="text-violet-600" />
         <StatCard label="Cameras" value={totalCameras} icon={Camera} bg="bg-blue-50" text="text-blue-600" />
         <StatCard label="Occupied" value={kpiOccupied} icon={Car} bg="bg-red-50" text="text-red-500" />
         <StatCard label="Available" value={kpiAvailable} icon={CircleCheck} bg="bg-emerald-50" text="text-emerald-600" />
