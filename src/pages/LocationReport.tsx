@@ -16,6 +16,7 @@ function LocationReportSkeleton() {
   return (
     <SkeletonShell>
       <SkeletonHeader action />
+      {SHOW_SUMMARY_CARDS && (
       <div className="space-y-4 mb-6 animate-pulse">
         {[0, 1].map((g) => (
           <div key={g}>
@@ -31,6 +32,7 @@ function LocationReportSkeleton() {
           </div>
         ))}
       </div>
+      )}
       <div className="flex flex-wrap items-center gap-3 mb-6 animate-pulse">
         <Skel className="w-72 h-10 rounded-xl" />
         <Skel className="w-28 h-10 rounded-xl" />
@@ -59,6 +61,10 @@ const INTERVAL_OPTIONS = [
   { label: "15 min", value: 15 },
   { label: "30 min", value: 30 },
 ];
+
+/** Occupancy cards above the table — hidden for now, not deleted.
+ *  Flip to true to bring them back; the fetch is skipped while this is false. */
+const SHOW_SUMMARY_CARDS = false;
 
 const PAGE_SIZE = 20;
 const FETCH_PAGE_SIZE = 100;
@@ -278,6 +284,8 @@ export default function LocationReport() {
   usePolling(fetchAll, isLive ? 15000 : 3_600_000);
 
   const fetchSummary = useCallback(async () => {
+    // Cards are hidden — don't spend a request every 15s on figures nobody sees.
+    if (!SHOW_SUMMARY_CARDS) return;
     const p = new URLSearchParams();
     if (customFrom || customTo) {
       if (customFrom) p.set("start_date", new Date(customFrom).toISOString());
@@ -345,8 +353,9 @@ export default function LocationReport() {
         </div>
       </div>
 
-      {/* Occupancy summary cards — grouped Cars / 2 Wheeler */}
-      {summary === null ? (
+      {/* Occupancy summary cards — grouped Cars / 2 Wheeler. Hidden behind
+          SHOW_SUMMARY_CARDS; the markup is kept so it can be switched back on. */}
+      {SHOW_SUMMARY_CARDS && (summary === null ? (
         <div className="space-y-4 mb-6 animate-pulse">
           {[0, 1].map((g) => (
             <div key={g}>
@@ -397,7 +406,7 @@ export default function LocationReport() {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Search + Filters */}
       <FilterToolbar search={search} onSearch={setSearch} searchPlaceholder="Search location..." filterCount={activeFilterCount} onOpen={openFilters} />
