@@ -18,6 +18,7 @@ import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
 import ParkingHistory from "@/pages/ParkingScanHistory";
 import LocationParkingHistory from "@/pages/LocationParkingHistory";
+import LocationReport from "@/pages/LocationReport";
 import VehicleMovements from "@/pages/VehicleMovements";
 import AnprHistory from "@/pages/AnprHistory";
 import AnprRecords from "@/pages/AnprRecords";
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/parking-history" element={<ParkingHistory />} />
         <Route path="/parking-history/location/:id" element={<LocationParkingHistory />} />
+        <Route path="/location-report" element={<LocationReport />} />
         <Route path="/vehicle-movements" element={<VehicleMovements />} />
         <Route path="/anpr-history" element={<AnprHistory />} />
         <Route path="/anpr-records" element={<AnprRecords />} />
